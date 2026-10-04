@@ -642,15 +642,22 @@ function mergeIn(d){
   S.seen = Object.assign({}, d.seen || {}, S.seen);
   S.swipes.forEach(s => S.seen[s.id] = 1);
   S.seedIdx = Math.max(S.seedIdx || 0, d.seedIdx || 0);
+  // Everything in the restored file is, by definition, already backed up.
+  const inBackup = new Set(d.swipes.map(x => x && x.id));
+  const covered = S.swipes.filter(x => inBackup.has(x.id)).length;
+  S.backupCount = Math.max(S.backupCount || 0, covered);
+  const exported = Date.parse(d.exported || "");
+  if (!isNaN(exported)) S.lastBackup = Math.max(S.lastBackup || 0, exported);
   save();
   return added;
 }
 function nudgeBackup(){
   const since = S.swipes.length - (S.backupCount || 0);
+  const nudge = document.getElementById("nudge");
   if (since >= 50){
     document.getElementById("nudgeText").textContent = `${since} swipes since your last backup.`;
-    document.getElementById("nudge").hidden = false;
-  }
+    nudge.hidden = false;
+  } else nudge.hidden = true;
 }
 function goRestore(){
   document.getElementById("tab-taste").click();
@@ -746,7 +753,7 @@ function bindData(){
     try {
       const d = dec(document.getElementById("bkText").value);
       const added = mergeIn(d); rebuildKeys(); queue = queue.filter(a => !S.seen[a.id] && !(workKey(a) && seenKeys.has(workKey(a))));
-      toast(`Restored. ${added} new swipes merged; ${S.swipes.length} saved in total.`); renderTaste(); showWelcome();
+      toast(`Restored. ${added} new swipes merged; ${S.swipes.length} saved in total.`); renderTaste(); showWelcome(); nudgeBackup();
     } catch(e){ toast("That isn't a Salon Swipe backup. Check that you pasted the whole code."); }
   };
 }
