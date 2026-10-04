@@ -680,6 +680,11 @@ function dataSection(){
       <div class="btns" style="margin-top:8px"><button class="txt" id="bkGo">Restore</button></div>
     </div></div>`;
 }
+// e.g. salon-swipe-2026-10-04-1351-212swipes.json: local time, sorts in order, count shows which is newest
+function backupName(){
+  const d = new Date(), z = x => String(x).padStart(2, "0");
+  return `salon-swipe-${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}-${S.swipes.length}swipes.json`;
+}
 function copySync(text){
   const ta = document.createElement("textarea");
   ta.value = text; ta.setAttribute("readonly", "");
@@ -705,7 +710,7 @@ function bindData(){
     try {
       const blob = new Blob([JSON.stringify(backupPayload())], {type:"application/json"});
       const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob); a.download = `salon-swipe-backup-${new Date().toISOString().slice(0,10)}.json`;
+      a.href = URL.createObjectURL(blob); a.download = backupName();
       document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
       markBackedUp(); toast("Backup file saved. Keep it in iCloud Drive or Files."); renderTaste();
     } catch(e){ toast("Couldn't create the file. Use Copy backup code instead."); }
@@ -721,7 +726,7 @@ function bindData(){
   const shareBtn = document.getElementById("bkShare");
   if (shareBtn) shareBtn.onclick = async () => {
     const code = enc(backupPayload());
-    const name = `salon-swipe-backup-${new Date().toISOString().slice(0,10)}.json`;
+    const name = backupName();
     try {
       const file = new File([JSON.stringify(backupPayload())], name, {type:"application/json"});
       if (navigator.canShare && navigator.canShare({files:[file]})) await navigator.share({files:[file], title:"Salon Swipe backup"});
