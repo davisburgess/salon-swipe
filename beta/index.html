@@ -668,13 +668,37 @@ function dataSection(){
   const last = S.lastBackup ? new Date(S.lastBackup).toLocaleDateString(undefined, {month:"short", day:"numeric", year:"numeric"}) : "never";
   return `<div class="dim data" id="dataSec"><h2>Your data</h2>
     <p>${S.swipes.length} swipes saved in this browser${IS_BETA ? " (test copy)" : ""}. Last backup: ${last}.${saveFailed ? " <strong>This browser is refusing to save. Back up now.</strong>" : ""}</p>
-    <div class="btns"><button class="txt" id="bkFile">Save backup file</button><button class="txt" id="bkCopy">Copy backup code</button><button class="txt" id="bkRestoreAsk">Restore…</button></div>
+    <div class="btns"><button class="txt" id="bkFile">Save backup file</button><button class="txt" id="bkCopy">Copy backup code</button>${navigator.share ? '<button class="txt" id="bkShare">Share backup…</button>' : ""}<button class="txt" id="bkRestoreAsk">Restore…</button></div>
+    <div id="bkShow" hidden>
+      <p>Your browser blocked automatic copying. Tap the box, choose <strong>Select All</strong>, then <strong>Copy</strong>.</p>
+      <textarea id="bkCode" readonly></textarea>
+    </div>
     <div id="bkRestore" hidden>
       <p>Pick a backup file or paste a backup code. Swipes are merged; nothing you have now is lost.</p>
       <div class="btns"><input type="file" id="bkFileIn" accept=".json,application/json,text/plain"></div>
       <textarea id="bkText" placeholder="SALON1:…"></textarea>
       <div class="btns" style="margin-top:8px"><button class="txt" id="bkGo">Restore</button></div>
     </div></div>`;
+}
+function copySync(text){
+  const ta = document.createElement("textarea");
+  ta.value = text; ta.setAttribute("readonly", "");
+  ta.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;font-size:16px";
+  document.body.appendChild(ta);
+  let ok = false;
+  try {
+    ta.focus(); ta.select(); ta.setSelectionRange(0, text.length);   // iOS needs the explicit range
+    ok = document.execCommand("copy");
+  } catch(e){ ok = false; }
+  ta.remove(); window.getSelection && window.getSelection().removeAllRanges();
+  return ok;
+}
+function showCode(code){
+  const box = document.getElementById("bkShow"), t = document.getElementById("bkCode");
+  if (!box) return;
+  box.hidden = false; t.value = code;
+  t.onfocus = () => t.setSelectionRange(0, code.length);
+  box.scrollIntoView({behavior:"smooth", block:"center"});
 }
 function bindData(){
   document.getElementById("bkFile").onclick = () => {
@@ -689,14 +713,25 @@ function bindData(){
   document.getElementById("bkCopy").onclick = () => {
     const code = enc(backupPayload());
     const done = () => { markBackedUp(); toast("Backup code copied. Paste it into Notes to keep it."); renderTaste(); };
-    const fallback = () => {
-      document.getElementById("bkRestore").hidden = false;
-      const t = document.getElementById("bkText"); t.value = code; t.select();
-      toast("Select-all and copy the code shown below.");
-      markBackedUp();
-    };
-    try { navigator.clipboard.writeText(code).then(done, fallback); } catch(e){ fallback(); }
+    // 1) Synchronous copy inside the tap. This is the path iPhone Safari honors most reliably.
+    if (copySync(code)) return done();
+    // 2) Modern clipboard API.
+    try { navigator.clipboard.writeText(code).then(done, () => showCode(code)); } catch(e){ showCode(code); }
   };
+  const shareBtn = document.getElementById("bkShare");
+  if (shareBtn) shareBtn.onclick = async () => {
+    const code = enc(backupPayload());
+    const name = `salon-swipe-backup-${new Date().toISOString().slice(0,10)}.json`;
+    try {
+      const file = new File([JSON.stringify(backupPayload())], name, {type:"application/json"});
+      if (navigator.canShare && navigator.canShare({files:[file]})) await navigator.share({files:[file], title:"Salon Swipe backup"});
+      else await navigator.share({title:"Salon Swipe backup", text:code});
+      markBackedUp(); toast("Backup shared."); renderTaste();
+    } catch(e){
+      if (e && e.name === "AbortError") return;   // you closed the share sheet
+      showCode(code);
+    }
+  };;
   document.getElementById("bkRestoreAsk").onclick = () => { const r = document.getElementById("bkRestore"); r.hidden = !r.hidden; };
   document.getElementById("bkFileIn").onchange = e => {
     const f = e.target.files[0]; if (!f) return;
