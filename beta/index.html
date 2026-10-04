@@ -62,6 +62,8 @@ section{flex:1;min-height:0;display:flex;flex-direction:column}
 .stamp.keep{left:22px;color:var(--keep);transform:rotate(-12deg)}
 .stamp.pass{right:22px;color:var(--pass);transform:rotate(12deg)}
 .stamp.love{left:50%;top:auto;bottom:22px;color:var(--brass);transform:translateX(-50%)}
+.stamp.later{left:50%;color:var(--ink-soft);transform:translateX(-50%)}
+.match.look{color:var(--ink-soft)}
 .label{padding:12px 18px 14px;display:grid;gap:2px}
 .label .who{font:600 13px/1.3 var(--f-body);letter-spacing:.02em}
 .label .what{font:italic 500 20px/1.2 var(--f-display);text-wrap:balance;
@@ -84,7 +86,7 @@ section{flex:1;min-height:0;display:flex;flex-direction:column}
 /* ---- taste ---- */
 .scroll{overflow-y:auto;flex:1;min-height:0;padding-bottom:24px}
 .summary{font:italic 500 21px/1.35 var(--f-display);margin:6px 0 18px;text-wrap:pretty}
-.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border-block:1px solid var(--line);margin-bottom:22px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border-block:1px solid var(--line);margin-bottom:22px}
 .stats div{background:var(--wall);padding:10px 4px;text-align:center}
 .stats b{display:block;font:500 22px/1.1 var(--f-display);font-variant-numeric:tabular-nums}
 .stats span{font:11px/1.3 var(--f-mono);color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em}
@@ -181,7 +183,7 @@ footer{max-width:560px;width:100%;margin:0 auto;padding-block:6px 10px;font:10.5
       <button class="cbtn keep" id="btnKeep" aria-label="Keep" title="Keep (→)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19.5 7"/></svg></button>
       <button class="cbtn small" id="btnInfo" aria-label="Tell me more" title="Tell me more (I)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
     </div>
-    <div class="hint">Drag right to keep · left to pass · up to love · tap for details</div>
+    <div class="hint">Right to keep · left to pass · up to love · down for later · tap for details</div>
   </section>
 
   <section id="taste" hidden>
@@ -219,7 +221,9 @@ const SEED = ["Impressionism","Ukiyo-e","Renaissance","Ancient Egyptian","Cubism
   "Fauvism","Romanticism","Pointillism","Gothic","Tonalism","Arts and Crafts","Qing dynasty","Precisionism","Aesthetic Movement"];
 
 /* ---------- state ---------- */
-const blankState = () => ({ ver:SCHEMA, swipes:[], seen:{}, explore:0.35, seedIdx:0, lastBackup:0 });
+const blankState = () => ({ ver:SCHEMA, swipes:[], seen:{}, explore:0.35, seedIdx:0, lastBackup:0, later:[] });
+// Later: a deferred card comes back LATER_MIN–LATER_MAX swipes on. The third deferral records it as undecided.
+const LATER_MIN = 15, LATER_MAX = 25, MAX_DEFERS = 3;
 let S = blankState();
 try {
   let raw = localStorage.getItem(STORE);
@@ -261,6 +265,7 @@ function feats(a){
 function tally(){
   const t = {}; let pos = 0, neg = 0;
   for (const s of S.swipes){
+    if (s.v === 0) continue;   // undecided: no like or dislike signal
     const w = s.v === 2 ? 2 : 1, liked = s.v > 0;
     liked ? pos += w : neg += w;
     for (const k of s.f){ const o = t[k] || (t[k] = {p:0,n:0,c:0}); liked ? o.p += w : o.n += w; o.c++; }
@@ -310,7 +315,8 @@ let held = [];   // cards waiting out the artist gap
 const rebuildKeys = () => { seenKeys = new Set(S.swipes.map(s => workKey(s.a)).filter(Boolean)); };
 rebuildKeys();
 const inQueue = a => [...queue, ...held].some(q => q.id === a.id || (workKey(a) && workKey(q) === workKey(a)));
-const usable = a => a && a.image_id && !S.seen[a.id] && !(workKey(a) && seenKeys.has(workKey(a))) && !inQueue(a);
+const laterHas = a => (S.later || []).some(l => l.a.id === a.id || (workKey(a) && workKey(l.a) === workKey(a)));
+const usable = a => a && a.image_id && !S.seen[a.id] && !laterHas(a) && !(workKey(a) && seenKeys.has(workKey(a))) && !inQueue(a);
 // Remove duplicates inside one batch (two searches can return the same work).
 function dedupe(list){
   const ids = new Set(), keys = new Set(), out = [];
@@ -423,9 +429,10 @@ function cardEl(a, under){
   const lq = a.thumbnail && a.thumbnail.lqip ? `<img class="lqip" src="${a.thumbnail.lqip}" alt="">` : "";
   el.innerHTML = `
     <div class="frame">${lq}<img class="full" alt="${esc(a.thumbnail && a.thumbnail.alt_text || a.title)}" src="${imgUrl(a)}">
-      <div class="stamp keep">Keep</div><div class="stamp pass">Pass</div><div class="stamp love">Love</div></div>
+      <div class="stamp keep">Keep</div><div class="stamp pass">Pass</div><div class="stamp love">Love</div><div class="stamp later">Later</div></div>
     <div class="label">
-      ${a._seed ? `<div class="match">Opening deck · ${esc(a._seed)}</div>` : p != null ? `<div class="match">Predicted fit ${Math.round(p*100)}%</div>` : ""}
+      ${a._look ? `<div class="match look">${a._look >= MAX_DEFERS ? "Last look · Later again marks it undecided" : "Second look"}</div>` :
+        a._seed ? `<div class="match">Opening deck · ${esc(a._seed)}</div>` : p != null ? `<div class="match">Predicted fit ${Math.round(p*100)}%</div>` : ""}
       <div class="who">${esc(a.artist_title || "Unknown maker")}</div>
       <div class="what">${esc(a.title)}</div>
       <div class="meta"><span>${esc(a.date_display||"")}</span>${a.style_title?`<span>${esc(a.style_title)}</span>`:""}<span>${esc(a.classification_title||a.artwork_type_title||"")}</span></div>
@@ -436,6 +443,14 @@ function cardEl(a, under){
   full.onerror = () => { el.dataset.broken = "1"; };
   return el;
 }
+function releaseLater(){
+  const due = (S.later || []).filter(l => l.due <= S.swipes.length);
+  if (!due.length) return;
+  S.later = S.later.filter(l => l.due > S.swipes.length); save();
+  const cards = due.map(l => Object.assign({}, l.a, { _look: l.n + 1 }));
+  queue.splice(Math.min(1, queue.length), 0, ...cards);   // next up, right after the card on screen
+}
+let autoOpened = null;
 function render(){
   deck.innerHTML = "";
   if (!queue.length){ setState("Pulling works from the vault…"); fetchBatch(); return; }
@@ -443,6 +458,7 @@ function render(){
   const top = cardEl(queue[0]); deck.appendChild(top);
   top.querySelector(".full").addEventListener("error", () => { const b = queue.shift(); if (b) S.seen[b.id] = 1; save(); render(); }, {once:true});
   bindDrag(top);
+  if (queue[0]._look === 2 && autoOpened !== queue[0].id){ autoOpened = queue[0].id; setTimeout(() => openSheet(queue[0]), 250); }
   if (queue.length < 8) fetchBatch();
 }
 
@@ -456,10 +472,12 @@ function bindDrag(el){
     st("keep").style.opacity = Math.max(0, Math.min(1, dx/100));
     st("pass").style.opacity = Math.max(0, Math.min(1, -dx/100));
     st("love").style.opacity = Math.max(0, Math.min(1, (-dy - Math.abs(dx))/100));
+    st("later").style.opacity = Math.max(0, Math.min(1, (dy - Math.abs(dx))/100));
   });
   const end = () => {
     if (!on) return; on=false; el.classList.remove("dragging");
     if (-dy > 110 && -dy > Math.abs(dx)) decide(2);
+    else if (dy > 110 && dy > Math.abs(dx)) defer();
     else if (dx > 100) decide(1);
     else if (dx < -100) decide(-1);
     else { el.style.transform=""; el.querySelectorAll(".stamp").forEach(s=>s.style.opacity=0); if (!moved) openSheet(queue[0]); }
@@ -472,18 +490,40 @@ function decide(v){
   const el = deck.querySelector(".card:not(.under)"); const a = queue[0];
   if (!el || !a) return;
   const p = predict(a);
-  if (p != null){ predN++; if ((p >= .5) === (v > 0)) predHits++; }
+  if (p != null && v !== 0){ predN++; if ((p >= .5) === (v > 0)) predHits++; }
+  lastAction = { type:"swipe", a };
   S.swipes.push({ id:a.id, v, f:feats(a), t:Date.now(),
     a:{ id:a.id, title:a.title, artist_title:a.artist_title, date_display:a.date_display, image_id:a.image_id,
         style_title:a.style_title, classification_title:a.classification_title, color:a.color } });
   S.seen[a.id] = 1; { const k = workKey(a); if (k) seenKeys.add(k); } save(); nudgeBackup(); welcome.hidden = true;
-  const x = v === 2 ? 0 : v*innerWidth*1.2, y = v === 2 ? -innerHeight : 40;
-  el.querySelector(".stamp."+(v===2?"love":v>0?"keep":"pass")).style.opacity = 1;
-  el.style.transform = `translate(${x}px,${y}px) rotate(${v===2?0:v*24}deg)`; el.style.opacity = 0;
+  const x = (v === 2 || v === 0) ? 0 : v*innerWidth*1.2, y = v === 2 ? -innerHeight : v === 0 ? innerHeight : 40;
+  el.querySelector(".stamp."+(v===2?"love":v===0?"later":v>0?"keep":"pass")).style.opacity = 1;
+  el.style.transform = `translate(${x}px,${y}px) rotate(${(v===2||v===0)?0:v*24}deg)`; el.style.opacity = 0;
+  queue.shift(); releaseLater();
+  setTimeout(render, 220);
+}
+let lastAction = null;
+function defer(){
+  const el = deck.querySelector(".card:not(.under)"); const a = queue[0];
+  if (!el || !a) return;
+  const n = (a._look || 1);              // how many times you've now deferred it
+  if (n >= MAX_DEFERS){ toast("Marked undecided. It won't come back."); return decide(0); }
+  const clean = Object.assign({}, a); delete clean._look; delete clean._seed;
+  const entry = { a: clean, n, due: S.swipes.length + LATER_MIN + Math.floor(Math.random() * (LATER_MAX - LATER_MIN + 1)) };
+  S.later = (S.later || []).concat(entry); save();
+  lastAction = { type:"defer", entry, card:a };
+  el.querySelector(".stamp.later").style.opacity = 1;
+  el.style.transform = `translate(0px,${innerHeight}px)`; el.style.opacity = 0;
   queue.shift();
   setTimeout(render, 220);
 }
 function undo(){
+  if (lastAction && lastAction.type === "defer"){
+    const { entry, card } = lastAction; lastAction = null;
+    S.later = (S.later || []).filter(l => l !== entry); save();
+    queue.unshift(card); return render();
+  }
+  lastAction = null;
   const last = S.swipes.pop(); if (!last) return;
   delete S.seen[last.id]; rebuildKeys(); save();
   queue.unshift(Object.assign({}, last.a, {thumbnail:null}));
@@ -501,6 +541,7 @@ addEventListener("keydown", e => {
   if (e.key === "ArrowRight") decide(1);
   else if (e.key === "ArrowLeft") decide(-1);
   else if (e.key === "ArrowUp") { e.preventDefault(); decide(2); }
+  else if (e.key === "ArrowDown") { e.preventDefault(); defer(); }
   else if (e.key === "Backspace") undo();
   else if (e.key === "i" || e.key === "I") openSheet(queue[0]);
 });
@@ -519,10 +560,11 @@ function describe(T){
 }
 function renderTaste(){
   const T = tally(), n = S.swipes.length, kept = S.swipes.filter(s => s.v > 0).length;
+  const undecided = S.swipes.filter(s => s.v === 0).length, decided = n - undecided;
   const body = document.getElementById("tasteBody");
   const sum = n >= 10 ? describe(T) : null;
   let h = `<p class="summary">${sum ? esc(sum) : n < 10 ? `Swipe ${10-n} more ${10-n===1?"work":"works"} and a profile will start to form.` : "No clear pattern yet. Keep going; a few more Loves sharpen it fast."}</p>
-    <div class="stats"><div><b>${n}</b><span>Judged</span></div><div><b>${n?Math.round(kept/n*100):0}%</b><span>Kept</span></div>
+    <div class="stats"><div><b>${n}</b><span>Judged</span></div><div><b>${decided?Math.round(kept/decided*100):0}%</b><span>Kept</span></div><div><b>${undecided}</b><span>Undecided</span></div>
     <div><b>${predN>=5?Math.round(predHits/predN*100)+"%":"—"}</b><span>Model right</span></div></div>
     <div class="mixer"><label for="explore">Discovery mix</label>
       <input id="explore" type="range" min="0.1" max="0.9" step="0.05" value="${S.explore}">
@@ -627,7 +669,7 @@ function dec(text){
   if (!d || !Array.isArray(d.swipes)) throw new Error("shape");
   return d;
 }
-function backupPayload(){ return { app:"salon-swipe", ver:SCHEMA, exported:new Date().toISOString(), swipes:S.swipes, seen:S.seen, explore:S.explore, seedIdx:S.seedIdx }; }
+function backupPayload(){ return { app:"salon-swipe", ver:SCHEMA, exported:new Date().toISOString(), swipes:S.swipes, seen:S.seen, explore:S.explore, seedIdx:S.seedIdx, later:S.later || [] }; }
 function markBackedUp(){ S.lastBackup = Date.now(); S.backupCount = S.swipes.length; save(); document.getElementById("nudge").hidden = true; }
 function mergeIn(d){
   const byId = new Map(S.swipes.map(s => [s.id, s]));
@@ -642,6 +684,7 @@ function mergeIn(d){
   S.seen = Object.assign({}, d.seen || {}, S.seen);
   S.swipes.forEach(s => S.seen[s.id] = 1);
   S.seedIdx = Math.max(S.seedIdx || 0, d.seedIdx || 0);
+  for (const l of (d.later || [])) if (l && l.a && !S.seen[l.a.id] && !(S.later || []).some(x => x.a.id === l.a.id)) S.later = (S.later || []).concat(l);
   // Everything in the restored file is, by definition, already backed up.
   const inBackup = new Set(d.swipes.map(x => x && x.id));
   const covered = S.swipes.filter(x => inBackup.has(x.id)).length;
@@ -773,6 +816,7 @@ if (IS_BETA){
 }
 nudgeBackup();
 showWelcome();
+releaseLater();
 fetchBatch();
 })();
 </script>
