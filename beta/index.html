@@ -171,6 +171,7 @@ footer{max-width:560px;width:100%;margin:0 auto;padding-block:6px 10px;font:10.5
 
 <main>
   <section id="swipe">
+    <div class="nudge" id="welcome" hidden><span>Coming from another device?</span><span style="display:flex;gap:6px"><button class="txt" id="welcomeGo">Restore your history</button><button class="txt" id="welcomeX" aria-label="Dismiss">✕</button></span></div>
     <div class="nudge" id="nudge" hidden><span id="nudgeText"></span><button class="txt" id="nudgeGo">Back up now</button></div>
     <div class="deck" id="deck"><div class="state" id="deckState"><p>Pulling works from the vault…</p></div></div>
     <div class="controls">
@@ -475,7 +476,7 @@ function decide(v){
   S.swipes.push({ id:a.id, v, f:feats(a), t:Date.now(),
     a:{ id:a.id, title:a.title, artist_title:a.artist_title, date_display:a.date_display, image_id:a.image_id,
         style_title:a.style_title, classification_title:a.classification_title, color:a.color } });
-  S.seen[a.id] = 1; { const k = workKey(a); if (k) seenKeys.add(k); } save(); nudgeBackup();
+  S.seen[a.id] = 1; { const k = workKey(a); if (k) seenKeys.add(k); } save(); nudgeBackup(); welcome.hidden = true;
   const x = v === 2 ? 0 : v*innerWidth*1.2, y = v === 2 ? -innerHeight : 40;
   el.querySelector(".stamp."+(v===2?"love":v>0?"keep":"pass")).style.opacity = 1;
   el.style.transform = `translate(${x}px,${y}px) rotate(${v===2?0:v*24}deg)`; el.style.opacity = 0;
@@ -651,6 +652,17 @@ function nudgeBackup(){
     document.getElementById("nudge").hidden = false;
   }
 }
+function goRestore(){
+  document.getElementById("tab-taste").click();
+  setTimeout(() => {
+    const r = document.getElementById("bkRestore"); if (r) r.hidden = false;
+    document.getElementById("dataSec")?.scrollIntoView({behavior:"smooth", block:"start"});
+  }, 50);
+}
+const welcome = document.getElementById("welcome");
+const showWelcome = () => { welcome.hidden = S.swipes.length > 0 || !!S.welcomeDismissed; };
+document.getElementById("welcomeGo").onclick = goRestore;
+document.getElementById("welcomeX").onclick = () => { S.welcomeDismissed = true; save(); showWelcome(); };
 document.getElementById("nudgeGo").onclick = () => { document.getElementById("tab-taste").click(); setTimeout(() => document.getElementById("dataSec")?.scrollIntoView({behavior:"smooth"}), 50); };
 function dataSection(){
   const last = S.lastBackup ? new Date(S.lastBackup).toLocaleDateString(undefined, {month:"short", day:"numeric", year:"numeric"}) : "never";
@@ -694,7 +706,7 @@ function bindData(){
     try {
       const d = dec(document.getElementById("bkText").value);
       const added = mergeIn(d); rebuildKeys(); queue = queue.filter(a => !S.seen[a.id] && !(workKey(a) && seenKeys.has(workKey(a))));
-      toast(`Restored. ${added} new swipes merged; ${S.swipes.length} saved in total.`); renderTaste();
+      toast(`Restored. ${added} new swipes merged; ${S.swipes.length} saved in total.`); renderTaste(); showWelcome();
     } catch(e){ toast("That isn't a Salon Swipe backup. Check that you pasted the whole code."); }
   };
 }
@@ -713,6 +725,7 @@ if (IS_BETA){
   document.title = "Salon Swipe Beta";
 }
 nudgeBackup();
+showWelcome();
 fetchBatch();
 })();
 </script>
