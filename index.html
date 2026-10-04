@@ -115,6 +115,46 @@ input[type=range]{width:100%;accent-color:var(--brass)}
 .tile b{font:italic 500 14px/1.25 var(--f-display);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .tile span{font:11px/1.3 var(--f-mono);color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tile .heart{color:var(--brass)}
+/* ---- details sheet ---- */
+.scrim{position:fixed;inset:0;background:rgba(10,12,10,.5);z-index:20}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:21;max-height:86vh;max-height:86dvh;overflow-y:auto;
+  background:var(--mat);color:var(--ink);border-radius:14px 14px 0 0;box-shadow:0 -12px 40px -10px rgba(0,0,0,.5);
+  padding:8px 20px calc(24px + env(safe-area-inset-bottom,0px));max-width:600px;margin:0 auto;animation:rise .28s cubic-bezier(.2,.8,.2,1)}
+@keyframes rise{from{transform:translateY(40px);opacity:0}}
+.sheet-top{position:sticky;top:-8px;z-index:2;background:var(--mat);display:flex;justify-content:flex-end;align-items:center;padding:6px 0 10px;margin-top:-8px}
+.grab{position:absolute;left:50%;top:10px;transform:translateX(-50%);width:40px;height:4px;border-radius:2px;background:var(--line)}
+.sheet h2{font:italic 500 24px/1.2 var(--f-display);margin:0 0 4px;text-wrap:balance}
+.sheet .by{font:500 13px/1.45 var(--f-body);color:var(--ink-soft);white-space:pre-line;margin:0 0 14px}
+.sheet .thumbBtn{display:block;width:100%;border:0;padding:0;background:var(--wall-deep);margin-bottom:6px;position:relative}
+.sheet .thumbBtn img{width:100%;max-height:44vh;object-fit:contain;display:block}
+.sheet .thumbBtn span{position:absolute;right:8px;bottom:8px;background:var(--mat);font:11px/1 var(--f-mono);padding:5px 8px;border-radius:999px}
+.sheet .desc{font:15px/1.6 var(--f-body);max-width:65ch}
+.sheet .desc p{margin:0 0 .8em}
+.onview{display:inline-flex;gap:6px;align-items:center;font:500 12px/1.2 var(--f-mono);padding:6px 10px;border-radius:999px;border:1px solid var(--line);margin:10px 0 14px}
+.onview.yes{color:var(--keep);border-color:var(--keep)}
+.facts{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 14px;margin:6px 0 16px;font-size:13.5px}
+.facts dt{font:600 10.5px/1.6 var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);padding-top:2px}
+.facts dd{margin:0;overflow-wrap:anywhere}
+.sheet details{border-top:1px solid var(--line);padding:10px 0}
+.sheet summary{cursor:pointer;font:600 11px/1.4 var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft)}
+.sheet details div{font-size:13px;line-height:1.55;white-space:pre-line;padding-top:8px;color:var(--ink-soft)}
+.sheet .out{display:inline-block;margin-top:12px;font:500 13px var(--f-body)}
+.sheet .loading{color:var(--ink-soft);font-size:14px;padding:6px 0 16px}
+.zoom{position:fixed;inset:0;z-index:30;background:#0b0c0b;overflow:auto;-webkit-overflow-scrolling:touch}
+.zoom img{display:block;width:100%;height:100%;object-fit:contain;cursor:zoom-in}
+.zoom.big img{width:260%;height:auto;max-width:none;object-fit:initial;cursor:zoom-out}
+.zoom .txt{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));right:12px;background:#f3f1ea;color:#1b1d1a;border:0}
+
+/* ---- backup ---- */
+.nudge{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;
+  font-size:13px;padding:8px 12px;margin-bottom:10px;border:1px solid var(--brass);border-radius:6px;color:var(--ink)}
+.data p{margin:0 0 10px;font-size:14px;color:var(--ink-soft)}
+.data .btns{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.data textarea{width:100%;min-height:80px;font:12px/1.4 var(--f-mono);background:var(--mat);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px}
+.data input[type=file]{font-size:13px;max-width:100%}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:40;
+  background:var(--ink);color:var(--wall);padding:10px 16px;border-radius:999px;font-size:13px;max-width:calc(100% - 32px);text-align:center}
+.beta{font:600 10px/1 var(--f-mono);letter-spacing:.1em;color:var(--brass);border:1px solid var(--brass);border-radius:4px;padding:3px 5px;vertical-align:middle;margin-left:6px}
 footer{max-width:560px;width:100%;margin:0 auto;padding-block:6px 10px;font:10.5px/1.4 var(--f-mono);color:var(--ink-soft);text-align:center}
 @media (prefers-reduced-motion:reduce){.card,.frame .full{transition:none}}
 </style>
@@ -131,15 +171,17 @@ footer{max-width:560px;width:100%;margin:0 auto;padding-block:6px 10px;font:10.5
 
 <main>
   <section id="swipe">
+    <div class="nudge" id="welcome" hidden><span>Coming from another device?</span><span style="display:flex;gap:6px"><button class="txt" id="welcomeGo">Restore your history</button><button class="txt" id="welcomeX" aria-label="Dismiss">✕</button></span></div>
+    <div class="nudge" id="nudge" hidden><span id="nudgeText"></span><button class="txt" id="nudgeGo">Back up now</button></div>
     <div class="deck" id="deck"><div class="state" id="deckState"><p>Pulling works from the vault…</p></div></div>
     <div class="controls">
       <button class="cbtn small" id="btnUndo" aria-label="Undo last swipe" title="Undo (Backspace)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button>
       <button class="cbtn pass" id="btnPass" aria-label="Pass" title="Pass (←)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
       <button class="cbtn love" id="btnLove" aria-label="Love" title="Love (↑)"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.8l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 16.8l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg></button>
       <button class="cbtn keep" id="btnKeep" aria-label="Keep" title="Keep (→)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19.5 7"/></svg></button>
-      <a class="cbtn small" id="btnInfo" aria-label="Open on artic.edu" title="Open museum page" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></a>
+      <button class="cbtn small" id="btnInfo" aria-label="Tell me more" title="Tell me more (I)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
     </div>
-    <div class="hint">Drag right to keep · left to pass · up to love</div>
+    <div class="hint">Drag right to keep · left to pass · up to love · tap for details</div>
   </section>
 
   <section id="taste" hidden>
@@ -150,6 +192,10 @@ footer{max-width:560px;width:100%;margin:0 auto;padding-block:6px 10px;font:10.5
     <div class="scroll" id="collBody"></div>
   </section>
 </main>
+<div class="scrim" id="scrim" hidden></div>
+<aside class="sheet" id="sheet" hidden role="dialog" aria-modal="true" aria-label="About this work"><div class="sheet-top"><div class="grab"></div><button class="txt" id="sheetDone">Done</button></div><div id="sheetBody"></div></aside>
+<div class="zoom" id="zoom" hidden><img id="zoomImg" alt=""><button class="txt" id="zoomClose">Close</button></div>
+<div class="toast" id="toast" role="status" hidden></div>
 <footer>Public-domain works from the Art Institute of Chicago open API. Your swipes stay in this browser.</footer>
 
 <script>
@@ -157,16 +203,32 @@ footer{max-width:560px;width:100%;margin:0 auto;padding-block:6px 10px;font:10.5
 const API = "https://api.artic.edu/api/v1/artworks/search";
 const IIIF = "https://www.artic.edu/iiif/2";
 const FIELDS = "id,title,artist_title,date_display,date_start,style_title,classification_title,place_of_origin,artwork_type_title,medium_display,image_id,color,thumbnail,subject_titles";
-const STORE = "salon-swipe-v1";
+const MAIN_STORE = "salon-swipe-v1";
+const IS_BETA = /\/beta\/?/.test(location.pathname);
+// The beta copy works on its own copy of your data, so testing never touches the real record.
+const STORE = IS_BETA ? "salon-swipe-beta" : MAIN_STORE;
+const SCHEMA = 2;
 const DIMS = [
   ["style","Movements & styles"],["artist","Artists"],["era","Eras"],["place","Places"],
   ["kind","Media"],["subject","Subjects"],["hue","Palette"]
 ];
+// Opening deck: one highlight work per movement, spread across eras, regions and media.
+const SEED = ["Impressionism","Ukiyo-e","Renaissance","Ancient Egyptian","Cubism","Baroque","Ming dynasty",
+  "Hudson River School","Symbolism","Mughal","Rococo","Expressionism","Byzantine","Realism","Art Nouveau",
+  "Dutch Golden Age","Ancient Greek","Post-Impressionism","Pre-Raphaelite","Edo period","Neoclassicism",
+  "Fauvism","Romanticism","Pointillism","Gothic","Tonalism","Arts and Crafts","Qing dynasty","Precisionism","Aesthetic Movement"];
 
 /* ---------- state ---------- */
-let S = { swipes:[], seen:{}, explore:0.35 };
-try { const raw = localStorage.getItem(STORE); if (raw) S = Object.assign(S, JSON.parse(raw)); } catch(e){}
-const save = () => { try { localStorage.setItem(STORE, JSON.stringify(S)); } catch(e){} };
+const blankState = () => ({ ver:SCHEMA, swipes:[], seen:{}, explore:0.35, seedIdx:0, lastBackup:0 });
+let S = blankState();
+try {
+  let raw = localStorage.getItem(STORE);
+  if (!raw && IS_BETA) raw = localStorage.getItem(MAIN_STORE);   // beta starts from a copy of your real data
+  if (raw) S = Object.assign(blankState(), JSON.parse(raw), { ver:SCHEMA });
+} catch(e){}
+let saveFailed = false;
+const save = () => { try { localStorage.setItem(STORE, JSON.stringify(S)); saveFailed = false; } catch(e){ saveFailed = true; } };
+try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch(e){}
 
 let queue = [], loading = false, predHits = 0, predN = 0;
 
@@ -224,28 +286,120 @@ function topLiked(dim, T){
   return Object.entries(T.t).filter(([k,o]) => k.startsWith(dim+"|") && o.p >= 2 && o.p > o.n)
     .sort((a,b) => (b[1].p-b[1].n) - (a[1].p-a[1].n)).map(([k]) => k.split("|")[1]);
 }
+// Highlights pool = the museum's own "boosted" works: far fewer minor prints and fragments.
+let boostOK = true;
+const pages = { hi:20, all:90 };
+const poolUrl = (hi, limit) => `${API}?fields=${FIELDS}&limit=${limit}` + (hi
+  ? `&query[bool][must][0][term][is_public_domain]=true&query[bool][must][1][term][is_boosted]=true`
+  : `&query[term][is_public_domain]=true`);
+const shuffle = arr => { for (let i = arr.length-1; i > 0; i--){ const k = Math.floor(Math.random()*(i+1)); [arr[i],arr[k]] = [arr[k],arr[i]]; } return arr; };
+/* ---------- no-repeat guardrails ----------
+   1. A work you've swiped never comes back (by museum id).
+   2. Other copies of the same work (a second impression of a print, a duplicate record) are blocked too,
+      matched on title + artist.
+   3. The same artist won't appear twice within ARTIST_GAP cards. */
+const ARTIST_GAP = 6;
+const norm = x => String(x || "").toLowerCase().replace(/\(.*?\)/g, " ").replace(/[^a-z0-9]+/g, " ").trim();
+const GENERIC = new Set(["", "untitled", "fragment", "study", "sketch", "drawing", "print", "photograph", "plate"]);
+const workKey = a => {
+  const t = norm(a && a.title), who = norm(a && a.artist_title);
+  return (!who || GENERIC.has(t)) ? null : t + "|" + who;   // no reliable match for anonymous or generic titles
+};
+let seenKeys = new Set();
+let held = [];   // cards waiting out the artist gap
+const rebuildKeys = () => { seenKeys = new Set(S.swipes.map(s => workKey(s.a)).filter(Boolean)); };
+rebuildKeys();
+const inQueue = a => [...queue, ...held].some(q => q.id === a.id || (workKey(a) && workKey(q) === workKey(a)));
+const usable = a => a && a.image_id && !S.seen[a.id] && !(workKey(a) && seenKeys.has(workKey(a))) && !inQueue(a);
+// Remove duplicates inside one batch (two searches can return the same work).
+function dedupe(list){
+  const ids = new Set(), keys = new Set(), out = [];
+  for (const a of list){
+    if (!usable(a) || ids.has(a.id)) continue;
+    const k = workKey(a);
+    if (k && keys.has(k)) continue;
+    ids.add(a.id); if (k) keys.add(k); out.push(a);
+  }
+  return out;
+}
+// Reorder the waiting cards so no artist repeats within ARTIST_GAP. Cards already on screen stay put.
+// Cards that can't be placed yet wait in `held` and get another chance as the deck moves on.
+function spaceArtists(){
+  const who = a => norm(a.artist_title);
+  const recent = S.swipes.slice(-ARTIST_GAP).map(s => norm(s.a && s.a.artist_title));
+  const waiting = held; held = [];
+  const out = queue.slice(0, 2), rest = [...queue.slice(2), ...waiting.filter(usable)];
+  const tooSoon = a => {
+    const w = who(a); if (!w) return false;
+    return [...recent, ...out.map(who)].slice(-(ARTIST_GAP - 1)).includes(w);
+  };
+  while (rest.length){
+    const i = rest.findIndex(a => !tooSoon(a));
+    if (i === -1){
+      if (out.length < 3) { out.push(rest.shift()); continue; }   // never starve the deck
+      held = rest.slice(0, 60); break;
+    }
+    out.push(rest.splice(i, 1)[0]);
+  }
+  queue = out;
+}
+
+async function getJSON(url){
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
+// Try the highlights pool first; fall back to the full collection if that query fails or comes back empty.
+async function query(extra, limit, kind){
+  if (boostOK){
+    try {
+      const j = await getJSON(poolUrl(true, limit) + extra);
+      if (j.pagination && kind) pages.hi = Math.max(1, Math.min(j.pagination.total_pages || 1, Math.floor(9000/limit)));
+      if ((j.data||[]).length) return j.data;
+      if (!extra.includes("q=")) boostOK = false;
+    } catch(e){ boostOK = false; }
+  }
+  const j = await getJSON(poolUrl(false, limit) + extra.replace(/&page=\d+/, kind ? `&page=${1+Math.floor(Math.random()*pages.all)}` : "$&"));
+  return j.data || [];
+}
+
+async function fetchSeed(){
+  const styles = SEED.slice(S.seedIdx, S.seedIdx + 5);
+  S.seedIdx += styles.length; save();
+  const results = await Promise.all(styles.map(st =>
+    query(`&q=${encodeURIComponent(st)}`, 12).then(d => {
+      const ok = dedupe(d);
+      const pick = shuffle(ok.slice(0, 6))[0];
+      if (pick) pick._seed = st;
+      return pick;
+    }).catch(() => null)));
+  return dedupe(results.filter(Boolean));
+}
+
 async function fetchBatch(){
   if (loading) return; loading = true;
   const T = tally();
-  const refine = S.swipes.length >= 12 && Math.random() > S.explore;
-  let url = `${API}?query[term][is_public_domain]=true&fields=${FIELDS}&limit=40`;
-  if (refine){
-    const pool = [...topLiked("style",T).slice(0,4), ...topLiked("artist",T).slice(0,3), ...topLiked("subject",T).slice(0,3), ...topLiked("place",T).slice(0,2)];
-    if (pool.length){
-      const q = pool[Math.floor(Math.random()*pool.length)];
-      url += `&q=${encodeURIComponent(q)}&page=${1+Math.floor(Math.random()*3)}`;
-    } else url += `&page=${1+Math.floor(Math.random()*90)}`;
-  } else url += `&page=${1+Math.floor(Math.random()*90)}`;
   try{
-    let r = await fetch(url);
-    if (!r.ok) r = await fetch(`${API}?query[term][is_public_domain]=true&fields=${FIELDS}&limit=40&page=${1+Math.floor(Math.random()*20)}`);
-    if (!r.ok) throw new Error(r.status);
-    const j = await r.json();
-    const fresh = (j.data||[]).filter(a => a.image_id && !S.seen[a.id] && !queue.some(q => q.id === a.id));
-    for (let i = fresh.length-1; i > 0; i--){ const k = Math.floor(Math.random()*(i+1)); [fresh[i],fresh[k]] = [fresh[k],fresh[i]]; }
-    // when refining, front-load the best predicted matches but keep some surprise
-    if (refine) fresh.sort((a,b) => (predict(b,T)||.5) - (predict(a,T)||.5));
-    queue.push(...fresh.slice(0, 24));
+    let fresh;
+    if (S.seedIdx < SEED.length){
+      fresh = await fetchSeed();
+      if (!fresh.length && S.seedIdx < SEED.length) fresh = await fetchSeed();
+    } else {
+      const refine = S.swipes.length >= 12 && Math.random() > S.explore;
+      const pool = refine ? [...topLiked("style",T).slice(0,4), ...topLiked("artist",T).slice(0,3), ...topLiked("subject",T).slice(0,3), ...topLiked("place",T).slice(0,2)] : [];
+      if (pool.length){
+        const q = pool[Math.floor(Math.random()*pool.length)];
+        fresh = await query(`&q=${encodeURIComponent(q)}&page=${1+Math.floor(Math.random()*3)}`, 40);
+      } else {
+        fresh = await query(`&page=${1+Math.floor(Math.random()*pages.hi)}`, 40, "browse");
+      }
+      fresh = shuffle(dedupe(fresh));
+      // when refining, front-load the best predicted matches but keep some surprise
+      if (refine) fresh.sort((a,b) => (predict(b,T)||.5) - (predict(a,T)||.5));
+      fresh = fresh.slice(0, 24);
+    }
+    queue.push(...dedupe(fresh));
+    spaceArtists();
     fresh.slice(0,4).forEach(a => { const im = new Image(); im.src = imgUrl(a); });
   }catch(e){
     if (!queue.length) setState("The museum's API didn't answer. Check your connection, then tap to retry.", true);
@@ -271,7 +425,7 @@ function cardEl(a, under){
     <div class="frame">${lq}<img class="full" alt="${esc(a.thumbnail && a.thumbnail.alt_text || a.title)}" src="${imgUrl(a)}">
       <div class="stamp keep">Keep</div><div class="stamp pass">Pass</div><div class="stamp love">Love</div></div>
     <div class="label">
-      ${p != null ? `<div class="match">Predicted fit ${Math.round(p*100)}%</div>` : ""}
+      ${a._seed ? `<div class="match">Opening deck · ${esc(a._seed)}</div>` : p != null ? `<div class="match">Predicted fit ${Math.round(p*100)}%</div>` : ""}
       <div class="who">${esc(a.artist_title || "Unknown maker")}</div>
       <div class="what">${esc(a.title)}</div>
       <div class="meta"><span>${esc(a.date_display||"")}</span>${a.style_title?`<span>${esc(a.style_title)}</span>`:""}<span>${esc(a.classification_title||a.artwork_type_title||"")}</span></div>
@@ -287,18 +441,17 @@ function render(){
   if (!queue.length){ setState("Pulling works from the vault…"); fetchBatch(); return; }
   if (queue[1]) deck.appendChild(cardEl(queue[1], true));
   const top = cardEl(queue[0]); deck.appendChild(top);
-  top.querySelector(".full").addEventListener("error", () => { queue.shift(); render(); }, {once:true});
-  document.getElementById("btnInfo").href = `https://www.artic.edu/artworks/${queue[0].id}`;
+  top.querySelector(".full").addEventListener("error", () => { const b = queue.shift(); if (b) S.seen[b.id] = 1; save(); render(); }, {once:true});
   bindDrag(top);
   if (queue.length < 8) fetchBatch();
 }
 
 function bindDrag(el){
-  let sx=0, sy=0, dx=0, dy=0, on=false;
+  let sx=0, sy=0, dx=0, dy=0, on=false, moved=false;
   const st = k => el.querySelector(".stamp."+k);
-  el.addEventListener("pointerdown", e => { on=true; sx=e.clientX; sy=e.clientY; el.setPointerCapture(e.pointerId); el.classList.add("dragging"); });
+  el.addEventListener("pointerdown", e => { on=true; moved=false; sx=e.clientX; sy=e.clientY; el.setPointerCapture(e.pointerId); el.classList.add("dragging"); });
   el.addEventListener("pointermove", e => {
-    if (!on) return; dx = e.clientX-sx; dy = e.clientY-sy;
+    if (!on) return; dx = e.clientX-sx; dy = e.clientY-sy; if (Math.abs(dx)+Math.abs(dy) > 8) moved = true;
     el.style.transform = `translate(${dx}px,${dy}px) rotate(${dx/18}deg)`;
     st("keep").style.opacity = Math.max(0, Math.min(1, dx/100));
     st("pass").style.opacity = Math.max(0, Math.min(1, -dx/100));
@@ -309,7 +462,7 @@ function bindDrag(el){
     if (-dy > 110 && -dy > Math.abs(dx)) decide(2);
     else if (dx > 100) decide(1);
     else if (dx < -100) decide(-1);
-    else { el.style.transform=""; el.querySelectorAll(".stamp").forEach(s=>s.style.opacity=0); }
+    else { el.style.transform=""; el.querySelectorAll(".stamp").forEach(s=>s.style.opacity=0); if (!moved) openSheet(queue[0]); }
     dx=dy=0;
   };
   el.addEventListener("pointerup", end); el.addEventListener("pointercancel", end);
@@ -323,7 +476,7 @@ function decide(v){
   S.swipes.push({ id:a.id, v, f:feats(a), t:Date.now(),
     a:{ id:a.id, title:a.title, artist_title:a.artist_title, date_display:a.date_display, image_id:a.image_id,
         style_title:a.style_title, classification_title:a.classification_title, color:a.color } });
-  S.seen[a.id] = 1; save();
+  S.seen[a.id] = 1; { const k = workKey(a); if (k) seenKeys.add(k); } save(); nudgeBackup(); welcome.hidden = true;
   const x = v === 2 ? 0 : v*innerWidth*1.2, y = v === 2 ? -innerHeight : 40;
   el.querySelector(".stamp."+(v===2?"love":v>0?"keep":"pass")).style.opacity = 1;
   el.style.transform = `translate(${x}px,${y}px) rotate(${v===2?0:v*24}deg)`; el.style.opacity = 0;
@@ -332,7 +485,7 @@ function decide(v){
 }
 function undo(){
   const last = S.swipes.pop(); if (!last) return;
-  delete S.seen[last.id]; save();
+  delete S.seen[last.id]; rebuildKeys(); save();
   queue.unshift(Object.assign({}, last.a, {thumbnail:null}));
   render();
 }
@@ -341,12 +494,15 @@ document.getElementById("btnKeep").onclick = () => decide(1);
 document.getElementById("btnPass").onclick = () => decide(-1);
 document.getElementById("btnLove").onclick = () => decide(2);
 document.getElementById("btnUndo").onclick = undo;
+document.getElementById("btnInfo").onclick = () => openSheet(queue[0]);
 addEventListener("keydown", e => {
-  if (document.getElementById("swipe").hidden || e.target.matches("input")) return;
+  if (e.key === "Escape") { closeSheet(); zoom.hidden = true; }
+  if (document.getElementById("swipe").hidden || !sheet.hidden || e.target.matches("input,textarea")) return;
   if (e.key === "ArrowRight") decide(1);
   else if (e.key === "ArrowLeft") decide(-1);
   else if (e.key === "ArrowUp") { e.preventDefault(); decide(2); }
   else if (e.key === "Backspace") undo();
+  else if (e.key === "i" || e.key === "I") openSheet(queue[0]);
 });
 
 /* ---------- taste profile ---------- */
@@ -388,13 +544,15 @@ function renderTaste(){
   }
   const cols = S.swipes.filter(s => s.v > 0 && s.a.color && s.a.color.h != null).slice(-24).map(s => s.a.color);
   h += `<div class="dim"><h2>Palette you kept</h2>${cols.length ? `<div class="swatches">${cols.map(c=>`<span class="sw" style="background:hsl(${c.h},${c.s}%,${c.l}%)" title="hsl(${c.h}, ${c.s}%, ${c.l}%)"></span>`).join("")}</div>` : `<p class="empty">Keep a few works to see their dominant colors.</p>`}</div>
+    ${dataSection()}
     <div class="danger" id="danger"><button class="txt" id="resetAsk">Start over</button></div>`;
   body.innerHTML = h;
+  bindData();
   document.getElementById("explore").oninput = e => { S.explore = +e.target.value; save(); };
   document.getElementById("resetAsk").onclick = () => {
-    document.getElementById("danger").innerHTML = `<span>Erase all ${n} swipes?</span><button class="txt warn" id="resetYes">Erase</button><button class="txt" id="resetNo">Keep them</button>`;
+    document.getElementById("danger").innerHTML = `<span>Erase all ${n} swipes? Save a backup first if you might want them.</span><button class="txt warn" id="resetYes">Erase</button><button class="txt" id="resetNo">Keep them</button>`;
     document.getElementById("resetNo").onclick = renderTaste;
-    document.getElementById("resetYes").onclick = () => { S = {swipes:[],seen:{},explore:.35}; save(); predHits=predN=0; queue=[]; renderTaste(); render(); };
+    document.getElementById("resetYes").onclick = () => { S = blankState(); save(); predHits=predN=0; queue=[]; renderTaste(); render(); };
   };
 }
 
@@ -408,6 +566,191 @@ function renderColl(){
     <b>${s.v===2?'<span class="heart">★ </span>':""}${esc(s.a.title)}</b><span>${esc(s.a.artist_title||"Unknown maker")} · ${esc(s.a.date_display||"")}</span></a>`).join("")}</div>`;
 }
 
+/* ---------- tell me more ---------- */
+const sheet = document.getElementById("sheet"), scrim = document.getElementById("scrim"), sheetBody = document.getElementById("sheetBody");
+const DETAIL_FIELDS = "id,title,artist_display,date_display,description,short_description,medium_display,dimensions,credit_line,place_of_origin,technique_titles,theme_titles,style_titles,is_on_view,gallery_title,provenance_text,exhibition_history,image_id";
+const detailCache = {};
+const paras = html => {
+  if (!html) return "";
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const ps = [...doc.querySelectorAll("p")].map(p => p.textContent.trim()).filter(Boolean);
+  return (ps.length ? ps : [doc.body.textContent.trim()]).filter(Boolean).map(t => `<p>${esc(t)}</p>`).join("");
+};
+function openSheet(a){
+  if (!a) return;
+  sheet.hidden = scrim.hidden = false; sheet.scrollTop = 0;
+  const head = `<button class="thumbBtn" id="thumbBtn" aria-label="View full size"><img alt="" src="${imgUrl(a)}"><span>View full size</span></button>
+    <h2>${esc(a.title)}</h2>`;
+  sheetBody.innerHTML = head + `<p class="by">${esc(a.artist_title || "Unknown maker")}${a.date_display ? ", " + esc(a.date_display) : ""}</p><div class="loading">Reading the wall label…</div>`;
+  document.getElementById("thumbBtn").onclick = () => openZoom(a);
+  const fill = d => {
+    if (sheet.hidden) return;
+    const fact = (k, v) => v && (Array.isArray(v) ? v.length : true) ? `<dt>${k}</dt><dd>${esc(Array.isArray(v) ? v.slice(0,6).join(", ") : v)}</dd>` : "";
+    const desc = paras(d.description) || (d.short_description ? `<p>${esc(d.short_description)}</p>` : `<p style="color:var(--ink-soft)">The museum hasn't written a description for this one. You'll have to form your own opinion.</p>`);
+    sheetBody.innerHTML = head + `<p class="by">${esc(d.artist_display || a.artist_title || "Unknown maker")}</p>
+      <div class="desc">${desc}</div>
+      <div class="onview ${d.is_on_view ? "yes" : ""}">${d.is_on_view ? `On view in Chicago${d.gallery_title ? " · " + esc(d.gallery_title) : ""}` : "In storage right now"}</div>
+      <dl class="facts">${fact("Date", d.date_display)}${fact("Medium", d.medium_display)}${fact("Size", d.dimensions)}${fact("Made in", d.place_of_origin)}${fact("Styles", d.style_titles)}${fact("Techniques", d.technique_titles)}${fact("Themes", d.theme_titles)}${fact("Credit", d.credit_line)}</dl>
+      ${d.provenance_text ? `<details><summary>Provenance</summary><div>${esc(d.provenance_text)}</div></details>` : ""}
+      ${d.exhibition_history ? `<details><summary>Exhibition history</summary><div>${esc(d.exhibition_history)}</div></details>` : ""}
+      <a class="out" href="https://www.artic.edu/artworks/${a.id}" target="_blank" rel="noopener">See it on artic.edu ↗</a>`;
+    document.getElementById("thumbBtn").onclick = () => openZoom(a);
+  };
+  if (detailCache[a.id]) return fill(detailCache[a.id]);
+  getJSON(`https://api.artic.edu/api/v1/artworks/${a.id}?fields=${DETAIL_FIELDS}`)
+    .then(j => { detailCache[a.id] = j.data; fill(j.data); })
+    .catch(() => { if (!sheet.hidden) sheetBody.querySelector(".loading").textContent = "Couldn't reach the museum for details. Try again in a moment."; });
+}
+function closeSheet(){ sheet.hidden = scrim.hidden = true; }
+scrim.onclick = closeSheet;
+document.getElementById("sheetDone").onclick = closeSheet;
+// drag the sheet down from the top to dismiss
+(() => { let y0 = null;
+  sheet.addEventListener("touchstart", e => { y0 = sheet.scrollTop <= 0 ? e.touches[0].clientY : null; }, {passive:true});
+  sheet.addEventListener("touchend", e => { if (y0 != null && e.changedTouches[0].clientY - y0 > 90) closeSheet(); y0 = null; });
+})();
+const zoom = document.getElementById("zoom"), zoomImg = document.getElementById("zoomImg");
+function openZoom(a){ zoomImg.src = imgUrl(a, 1686); zoom.classList.remove("big"); zoom.hidden = false; }
+zoomImg.onclick = () => zoom.classList.toggle("big");
+document.getElementById("zoomClose").onclick = () => { zoom.hidden = true; };
+
+/* ---------- toast ---------- */
+const toastEl = document.getElementById("toast"); let toastT;
+function toast(msg){ toastEl.textContent = msg; toastEl.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => toastEl.hidden = true, 3200); }
+
+/* ---------- backup & restore ---------- */
+const enc = obj => "SALON1:" + btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
+function dec(text){
+  text = text.trim();
+  const json = text.startsWith("SALON1:") ? decodeURIComponent(escape(atob(text.slice(7)))) : text;
+  const d = JSON.parse(json);
+  if (!d || !Array.isArray(d.swipes)) throw new Error("shape");
+  return d;
+}
+function backupPayload(){ return { app:"salon-swipe", ver:SCHEMA, exported:new Date().toISOString(), swipes:S.swipes, seen:S.seen, explore:S.explore, seedIdx:S.seedIdx }; }
+function markBackedUp(){ S.lastBackup = Date.now(); S.backupCount = S.swipes.length; save(); document.getElementById("nudge").hidden = true; }
+function mergeIn(d){
+  const byId = new Map(S.swipes.map(s => [s.id, s]));
+  let added = 0;
+  for (const s of d.swipes){
+    if (!s || s.id == null || !Array.isArray(s.f)) continue;
+    const cur = byId.get(s.id);
+    if (!cur) { byId.set(s.id, s); added++; }
+    else if ((s.t||0) > (cur.t||0)) byId.set(s.id, s);
+  }
+  S.swipes = [...byId.values()].sort((a,b) => (a.t||0) - (b.t||0));
+  S.seen = Object.assign({}, d.seen || {}, S.seen);
+  S.swipes.forEach(s => S.seen[s.id] = 1);
+  S.seedIdx = Math.max(S.seedIdx || 0, d.seedIdx || 0);
+  save();
+  return added;
+}
+function nudgeBackup(){
+  const since = S.swipes.length - (S.backupCount || 0);
+  if (since >= 50){
+    document.getElementById("nudgeText").textContent = `${since} swipes since your last backup.`;
+    document.getElementById("nudge").hidden = false;
+  }
+}
+function goRestore(){
+  document.getElementById("tab-taste").click();
+  setTimeout(() => {
+    const r = document.getElementById("bkRestore"); if (r) r.hidden = false;
+    document.getElementById("dataSec")?.scrollIntoView({behavior:"smooth", block:"start"});
+  }, 50);
+}
+const welcome = document.getElementById("welcome");
+const showWelcome = () => { welcome.hidden = S.swipes.length > 0 || !!S.welcomeDismissed; };
+document.getElementById("welcomeGo").onclick = goRestore;
+document.getElementById("welcomeX").onclick = () => { S.welcomeDismissed = true; save(); showWelcome(); };
+document.getElementById("nudgeGo").onclick = () => { document.getElementById("tab-taste").click(); setTimeout(() => document.getElementById("dataSec")?.scrollIntoView({behavior:"smooth"}), 50); };
+function dataSection(){
+  const last = S.lastBackup ? new Date(S.lastBackup).toLocaleDateString(undefined, {month:"short", day:"numeric", year:"numeric"}) : "never";
+  return `<div class="dim data" id="dataSec"><h2>Your data</h2>
+    <p>${S.swipes.length} swipes saved in this browser${IS_BETA ? " (test copy)" : ""}. Last backup: ${last}.${saveFailed ? " <strong>This browser is refusing to save. Back up now.</strong>" : ""}</p>
+    <div class="btns"><button class="txt" id="bkFile">Save backup file</button><button class="txt" id="bkCopy">Copy backup code</button>${navigator.share ? '<button class="txt" id="bkShare">Share backup…</button>' : ""}<button class="txt" id="bkRestoreAsk">Restore…</button></div>
+    <div id="bkShow" hidden>
+      <p>Your browser blocked automatic copying. Tap the box, choose <strong>Select All</strong>, then <strong>Copy</strong>.</p>
+      <textarea id="bkCode" readonly></textarea>
+    </div>
+    <div id="bkRestore" hidden>
+      <p>Pick a backup file or paste a backup code. Swipes are merged; nothing you have now is lost.</p>
+      <div class="btns"><input type="file" id="bkFileIn" accept=".json,application/json,text/plain"></div>
+      <textarea id="bkText" placeholder="SALON1:…"></textarea>
+      <div class="btns" style="margin-top:8px"><button class="txt" id="bkGo">Restore</button></div>
+    </div></div>`;
+}
+// e.g. salon-swipe-2026-10-04-1351-212swipes.json: local time, sorts in order, count shows which is newest
+function backupName(){
+  const d = new Date(), z = x => String(x).padStart(2, "0");
+  return `salon-swipe-${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}-${S.swipes.length}swipes.json`;
+}
+function copySync(text){
+  const ta = document.createElement("textarea");
+  ta.value = text; ta.setAttribute("readonly", "");
+  ta.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;font-size:16px";
+  document.body.appendChild(ta);
+  let ok = false;
+  try {
+    ta.focus(); ta.select(); ta.setSelectionRange(0, text.length);   // iOS needs the explicit range
+    ok = document.execCommand("copy");
+  } catch(e){ ok = false; }
+  ta.remove(); window.getSelection && window.getSelection().removeAllRanges();
+  return ok;
+}
+function showCode(code){
+  const box = document.getElementById("bkShow"), t = document.getElementById("bkCode");
+  if (!box) return;
+  box.hidden = false; t.value = code;
+  t.onfocus = () => t.setSelectionRange(0, code.length);
+  box.scrollIntoView({behavior:"smooth", block:"center"});
+}
+function bindData(){
+  document.getElementById("bkFile").onclick = () => {
+    try {
+      const blob = new Blob([JSON.stringify(backupPayload())], {type:"application/json"});
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = backupName();
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      markBackedUp(); toast("Backup file saved. Keep it in iCloud Drive or Files."); renderTaste();
+    } catch(e){ toast("Couldn't create the file. Use Copy backup code instead."); }
+  };
+  document.getElementById("bkCopy").onclick = () => {
+    const code = enc(backupPayload());
+    const done = () => { markBackedUp(); toast("Backup code copied. Paste it into Notes to keep it."); renderTaste(); };
+    // 1) Synchronous copy inside the tap. This is the path iPhone Safari honors most reliably.
+    if (copySync(code)) return done();
+    // 2) Modern clipboard API.
+    try { navigator.clipboard.writeText(code).then(done, () => showCode(code)); } catch(e){ showCode(code); }
+  };
+  const shareBtn = document.getElementById("bkShare");
+  if (shareBtn) shareBtn.onclick = async () => {
+    const code = enc(backupPayload());
+    const name = backupName();
+    try {
+      const file = new File([JSON.stringify(backupPayload())], name, {type:"application/json"});
+      if (navigator.canShare && navigator.canShare({files:[file]})) await navigator.share({files:[file], title:"Salon Swipe backup"});
+      else await navigator.share({title:"Salon Swipe backup", text:code});
+      markBackedUp(); toast("Backup shared."); renderTaste();
+    } catch(e){
+      if (e && e.name === "AbortError") return;   // you closed the share sheet
+      showCode(code);
+    }
+  };;
+  document.getElementById("bkRestoreAsk").onclick = () => { const r = document.getElementById("bkRestore"); r.hidden = !r.hidden; };
+  document.getElementById("bkFileIn").onchange = e => {
+    const f = e.target.files[0]; if (!f) return;
+    f.text().then(t => { document.getElementById("bkText").value = t; });
+  };
+  document.getElementById("bkGo").onclick = () => {
+    try {
+      const d = dec(document.getElementById("bkText").value);
+      const added = mergeIn(d); rebuildKeys(); queue = queue.filter(a => !S.seen[a.id] && !(workKey(a) && seenKeys.has(workKey(a))));
+      toast(`Restored. ${added} new swipes merged; ${S.swipes.length} saved in total.`); renderTaste(); showWelcome();
+    } catch(e){ toast("That isn't a Salon Swipe backup. Check that you pasted the whole code."); }
+  };
+}
+
 /* ---------- tabs ---------- */
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   document.querySelectorAll("nav button").forEach(x => x.setAttribute("aria-selected", x === b));
@@ -416,6 +759,13 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   if (b.dataset.tab === "coll") renderColl();
 });
 
+if (IS_BETA){
+  document.querySelector("h1").insertAdjacentHTML("beforeend", '<span class="beta">BETA</span>');
+  document.querySelector("footer").textContent = "Test copy. Swipes here stay separate from your main Salon Swipe data.";
+  document.title = "Salon Swipe Beta";
+}
+nudgeBackup();
+showWelcome();
 fetchBatch();
 })();
 </script>
