@@ -1,0 +1,669 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Salon Swipe</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,500;0,6..96,700;1,6..96,500&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one gallery wall; a matted print sits center, its wall label beneath. Tabs swap Swipe / Taste / Collection. */
+:root{
+  --wall:#dfe0d6; --wall-deep:#cfd1c4; --mat:#f7f4ec; --ink:#23261f; --ink-soft:#5c6155;
+  --brass:#9a7a3c; --keep:#2f6b4a; --pass:#a2423a; --line:rgba(35,38,31,.14);
+  --f-display:"Bodoni Moda","Didot","Bodoni 72",Georgia,serif;
+  --f-body:"Work Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --wall:#1f2420; --wall-deep:#171b18; --mat:#2b302b; --ink:#ebe8de; --ink-soft:#a4a99c;
+  --brass:#cda763; --keep:#5fae84; --pass:#d9796f; --line:rgba(235,232,222,.14); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --wall:#1f2420; --wall-deep:#171b18; --mat:#2b302b; --ink:#ebe8de; --ink-soft:#a4a99c;
+  --brass:#cda763; --keep:#5fae84; --pass:#d9796f; --line:rgba(235,232,222,.14); color-scheme:dark}
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--wall);color:var(--ink);font:15px/1.5 var(--f-body);
+  padding-block:env(safe-area-inset-top,0px) env(safe-area-inset-bottom,0px);padding-inline:16px;
+  display:flex;flex-direction:column;overflow-x:hidden}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+a{color:var(--ink)}
+
+header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  max-width:560px;width:100%;margin:0 auto;padding-block:14px 8px}
+h1{font:italic 500 26px/1 var(--f-display);margin:0;letter-spacing:-.01em}
+h1 span{font-style:normal;font-weight:700}
+nav{display:flex;gap:4px}
+nav button{background:none;border:0;padding:6px 10px;border-radius:999px;font:500 12px/1 var(--f-body);
+  letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft)}
+nav button[aria-selected="true"]{background:var(--ink);color:var(--wall)}
+
+main{flex:1;min-height:0;max-width:560px;width:100%;margin:0 auto;display:flex;flex-direction:column}
+section{flex:1;min-height:0;display:flex;flex-direction:column}
+
+/* ---- swipe deck ---- */
+.deck{position:relative;flex:1 1 auto;min-height:max(340px,62vh);min-height:max(340px,62dvh)}
+.card{position:absolute;inset:0;display:flex;flex-direction:column;background:var(--mat);
+  border-radius:3px;box-shadow:0 1px 0 var(--line),0 18px 40px -18px rgba(0,0,0,.45);
+  touch-action:none;user-select:none;will-change:transform;transition:transform .32s cubic-bezier(.2,.8,.2,1),opacity .32s}
+.card.under{transform:scale(.96) translateY(10px);opacity:.75}
+.card.dragging{transition:none}
+.frame{flex:1;min-height:0;margin:18px 18px 0;position:relative;background:var(--wall-deep);overflow:hidden}
+.frame img{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none}
+.frame .lqip{object-fit:cover;filter:blur(14px);transform:scale(1.1);opacity:.7}
+.frame .full{object-fit:contain;opacity:0;transition:opacity .4s}
+.frame .full.on{opacity:1}
+.stamp{position:absolute;top:22px;padding:4px 12px;border:3px solid;border-radius:4px;
+  font:700 22px/1.1 var(--f-display);letter-spacing:.06em;text-transform:uppercase;opacity:0;pointer-events:none;z-index:2;background:var(--mat)}
+.stamp.keep{left:22px;color:var(--keep);transform:rotate(-12deg)}
+.stamp.pass{right:22px;color:var(--pass);transform:rotate(12deg)}
+.stamp.love{left:50%;top:auto;bottom:22px;color:var(--brass);transform:translateX(-50%)}
+.label{padding:12px 18px 14px;display:grid;gap:2px}
+.label .who{font:600 13px/1.3 var(--f-body);letter-spacing:.02em}
+.label .what{font:italic 500 20px/1.2 var(--f-display);text-wrap:balance;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.label .meta{font:12px/1.4 var(--f-mono);color:var(--ink-soft);display:flex;flex-wrap:wrap;gap:4px 12px}
+.match{font:500 11px/1 var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--brass)}
+
+.controls{display:flex;justify-content:center;align-items:center;gap:18px;padding-block:14px 6px}
+.cbtn{width:58px;height:58px;border-radius:50%;border:1.5px solid var(--line);background:var(--mat);
+  display:grid;place-items:center;box-shadow:0 6px 16px -10px rgba(0,0,0,.5);transition:transform .12s}
+.cbtn:active{transform:scale(.92)}
+.cbtn svg{width:24px;height:24px}
+.cbtn.pass{color:var(--pass)} .cbtn.keep{color:var(--keep)}
+.cbtn.small{width:42px;height:42px;color:var(--ink-soft)} .cbtn.small svg{width:18px;height:18px}
+.cbtn.love{color:var(--brass)}
+.hint{text-align:center;font:11px/1.4 var(--f-mono);color:var(--ink-soft);padding-bottom:10px}
+.state{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:24px;color:var(--ink-soft)}
+.state p{max-width:32ch;margin:0}
+
+/* ---- taste ---- */
+.scroll{overflow-y:auto;flex:1;min-height:0;padding-bottom:24px}
+.summary{font:italic 500 21px/1.35 var(--f-display);margin:6px 0 18px;text-wrap:pretty}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border-block:1px solid var(--line);margin-bottom:22px}
+.stats div{background:var(--wall);padding:10px 4px;text-align:center}
+.stats b{display:block;font:500 22px/1.1 var(--f-display);font-variant-numeric:tabular-nums}
+.stats span{font:11px/1.3 var(--f-mono);color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em}
+.dim{margin-bottom:22px}
+.dim h2{font:600 11px/1 var(--f-body);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);margin:0 0 8px}
+.row{display:grid;grid-template-columns:minmax(0,1fr) 120px 40px;gap:10px;align-items:center;padding:5px 0;border-bottom:1px solid var(--line)}
+.row .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .n small{color:var(--ink-soft);font:11px var(--f-mono);margin-left:6px}
+.bar{height:6px;position:relative;background:var(--line);border-radius:3px}
+.bar i{position:absolute;top:0;bottom:0;border-radius:3px}
+.bar::after{content:"";position:absolute;left:50%;top:-3px;bottom:-3px;width:1px;background:var(--ink-soft)}
+.row .v{font:12px var(--f-mono);text-align:right;font-variant-numeric:tabular-nums}
+.swatches{display:flex;flex-wrap:wrap;gap:6px}
+.sw{width:30px;height:30px;border-radius:50%;border:1px solid var(--line)}
+.empty{color:var(--ink-soft);font-size:14px}
+.mixer{display:grid;gap:6px;margin:4px 0 22px}
+.mixer label{font:600 11px/1 var(--f-body);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft)}
+.mixer .ends{display:flex;justify-content:space-between;font:11px var(--f-mono);color:var(--ink-soft)}
+input[type=range]{width:100%;accent-color:var(--brass)}
+.danger{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px;color:var(--ink-soft)}
+.txt{background:none;border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:12px}
+.txt.warn{border-color:var(--pass);color:var(--pass)}
+
+/* ---- collection ---- */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
+.tile{background:var(--mat);padding:8px 8px 10px;display:grid;gap:6px;text-decoration:none;box-shadow:0 8px 20px -14px rgba(0,0,0,.5);min-width:0}
+.tile img{width:100%;aspect-ratio:1;object-fit:cover;background:var(--wall-deep)}
+.tile b{font:italic 500 14px/1.25 var(--f-display);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tile span{font:11px/1.3 var(--f-mono);color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tile .heart{color:var(--brass)}
+/* ---- details sheet ---- */
+.scrim{position:fixed;inset:0;background:rgba(10,12,10,.5);z-index:20}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:21;max-height:86vh;max-height:86dvh;overflow-y:auto;
+  background:var(--mat);color:var(--ink);border-radius:14px 14px 0 0;box-shadow:0 -12px 40px -10px rgba(0,0,0,.5);
+  padding:8px 20px calc(24px + env(safe-area-inset-bottom,0px));max-width:600px;margin:0 auto;animation:rise .28s cubic-bezier(.2,.8,.2,1)}
+@keyframes rise{from{transform:translateY(40px);opacity:0}}
+.sheet-top{position:sticky;top:-8px;z-index:2;background:var(--mat);display:flex;justify-content:flex-end;align-items:center;padding:6px 0 10px;margin-top:-8px}
+.grab{position:absolute;left:50%;top:10px;transform:translateX(-50%);width:40px;height:4px;border-radius:2px;background:var(--line)}
+.sheet h2{font:italic 500 24px/1.2 var(--f-display);margin:0 0 4px;text-wrap:balance}
+.sheet .by{font:500 13px/1.45 var(--f-body);color:var(--ink-soft);white-space:pre-line;margin:0 0 14px}
+.sheet .thumbBtn{display:block;width:100%;border:0;padding:0;background:var(--wall-deep);margin-bottom:6px;position:relative}
+.sheet .thumbBtn img{width:100%;max-height:44vh;object-fit:contain;display:block}
+.sheet .thumbBtn span{position:absolute;right:8px;bottom:8px;background:var(--mat);font:11px/1 var(--f-mono);padding:5px 8px;border-radius:999px}
+.sheet .desc{font:15px/1.6 var(--f-body);max-width:65ch}
+.sheet .desc p{margin:0 0 .8em}
+.onview{display:inline-flex;gap:6px;align-items:center;font:500 12px/1.2 var(--f-mono);padding:6px 10px;border-radius:999px;border:1px solid var(--line);margin:10px 0 14px}
+.onview.yes{color:var(--keep);border-color:var(--keep)}
+.facts{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 14px;margin:6px 0 16px;font-size:13.5px}
+.facts dt{font:600 10.5px/1.6 var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);padding-top:2px}
+.facts dd{margin:0;overflow-wrap:anywhere}
+.sheet details{border-top:1px solid var(--line);padding:10px 0}
+.sheet summary{cursor:pointer;font:600 11px/1.4 var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft)}
+.sheet details div{font-size:13px;line-height:1.55;white-space:pre-line;padding-top:8px;color:var(--ink-soft)}
+.sheet .out{display:inline-block;margin-top:12px;font:500 13px var(--f-body)}
+.sheet .loading{color:var(--ink-soft);font-size:14px;padding:6px 0 16px}
+.zoom{position:fixed;inset:0;z-index:30;background:#0b0c0b;overflow:auto;-webkit-overflow-scrolling:touch}
+.zoom img{display:block;width:100%;height:100%;object-fit:contain;cursor:zoom-in}
+.zoom.big img{width:260%;height:auto;max-width:none;object-fit:initial;cursor:zoom-out}
+.zoom .txt{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));right:12px;background:#f3f1ea;color:#1b1d1a;border:0}
+
+/* ---- backup ---- */
+.nudge{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;
+  font-size:13px;padding:8px 12px;margin-bottom:10px;border:1px solid var(--brass);border-radius:6px;color:var(--ink)}
+.data p{margin:0 0 10px;font-size:14px;color:var(--ink-soft)}
+.data .btns{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.data textarea{width:100%;min-height:80px;font:12px/1.4 var(--f-mono);background:var(--mat);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px}
+.data input[type=file]{font-size:13px;max-width:100%}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:40;
+  background:var(--ink);color:var(--wall);padding:10px 16px;border-radius:999px;font-size:13px;max-width:calc(100% - 32px);text-align:center}
+.beta{font:600 10px/1 var(--f-mono);letter-spacing:.1em;color:var(--brass);border:1px solid var(--brass);border-radius:4px;padding:3px 5px;vertical-align:middle;margin-left:6px}
+footer{max-width:560px;width:100%;margin:0 auto;padding-block:6px 10px;font:10.5px/1.4 var(--f-mono);color:var(--ink-soft);text-align:center}
+@media (prefers-reduced-motion:reduce){.card,.frame .full{transition:none}}
+</style>
+</head>
+<body>
+<header>
+  <h1><span>Salon</span> Swipe</h1>
+  <nav role="tablist">
+    <button id="tab-swipe" role="tab" aria-selected="true" data-tab="swipe">Swipe</button>
+    <button id="tab-taste" role="tab" aria-selected="false" data-tab="taste">Taste</button>
+    <button id="tab-coll" role="tab" aria-selected="false" data-tab="coll">Kept</button>
+  </nav>
+</header>
+
+<main>
+  <section id="swipe">
+    <div class="nudge" id="nudge" hidden><span id="nudgeText"></span><button class="txt" id="nudgeGo">Back up now</button></div>
+    <div class="deck" id="deck"><div class="state" id="deckState"><p>Pulling works from the vault…</p></div></div>
+    <div class="controls">
+      <button class="cbtn small" id="btnUndo" aria-label="Undo last swipe" title="Undo (Backspace)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button>
+      <button class="cbtn pass" id="btnPass" aria-label="Pass" title="Pass (←)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      <button class="cbtn love" id="btnLove" aria-label="Love" title="Love (↑)"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.8l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 16.8l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg></button>
+      <button class="cbtn keep" id="btnKeep" aria-label="Keep" title="Keep (→)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19.5 7"/></svg></button>
+      <button class="cbtn small" id="btnInfo" aria-label="Tell me more" title="Tell me more (I)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
+    </div>
+    <div class="hint">Drag right to keep · left to pass · up to love · tap for details</div>
+  </section>
+
+  <section id="taste" hidden>
+    <div class="scroll" id="tasteBody"></div>
+  </section>
+
+  <section id="coll" hidden>
+    <div class="scroll" id="collBody"></div>
+  </section>
+</main>
+<div class="scrim" id="scrim" hidden></div>
+<aside class="sheet" id="sheet" hidden role="dialog" aria-modal="true" aria-label="About this work"><div class="sheet-top"><div class="grab"></div><button class="txt" id="sheetDone">Done</button></div><div id="sheetBody"></div></aside>
+<div class="zoom" id="zoom" hidden><img id="zoomImg" alt=""><button class="txt" id="zoomClose">Close</button></div>
+<div class="toast" id="toast" role="status" hidden></div>
+<footer>Public-domain works from the Art Institute of Chicago open API. Your swipes stay in this browser.</footer>
+
+<script>
+(() => {
+const API = "https://api.artic.edu/api/v1/artworks/search";
+const IIIF = "https://www.artic.edu/iiif/2";
+const FIELDS = "id,title,artist_title,date_display,date_start,style_title,classification_title,place_of_origin,artwork_type_title,medium_display,image_id,color,thumbnail,subject_titles";
+const MAIN_STORE = "salon-swipe-v1";
+const IS_BETA = /\/beta\/?/.test(location.pathname);
+// The beta copy works on its own copy of your data, so testing never touches the real record.
+const STORE = IS_BETA ? "salon-swipe-beta" : MAIN_STORE;
+const SCHEMA = 2;
+const DIMS = [
+  ["style","Movements & styles"],["artist","Artists"],["era","Eras"],["place","Places"],
+  ["kind","Media"],["subject","Subjects"],["hue","Palette"]
+];
+// Opening deck: one highlight work per movement, spread across eras, regions and media.
+const SEED = ["Impressionism","Ukiyo-e","Renaissance","Ancient Egyptian","Cubism","Baroque","Ming dynasty",
+  "Hudson River School","Symbolism","Mughal","Rococo","Expressionism","Byzantine","Realism","Art Nouveau",
+  "Dutch Golden Age","Ancient Greek","Post-Impressionism","Pre-Raphaelite","Edo period","Neoclassicism",
+  "Fauvism","Romanticism","Pointillism","Gothic","Tonalism","Arts and Crafts","Qing dynasty","Precisionism","Aesthetic Movement"];
+
+/* ---------- state ---------- */
+const blankState = () => ({ ver:SCHEMA, swipes:[], seen:{}, explore:0.35, seedIdx:0, lastBackup:0 });
+let S = blankState();
+try {
+  let raw = localStorage.getItem(STORE);
+  if (!raw && IS_BETA) raw = localStorage.getItem(MAIN_STORE);   // beta starts from a copy of your real data
+  if (raw) S = Object.assign(blankState(), JSON.parse(raw), { ver:SCHEMA });
+} catch(e){}
+let saveFailed = false;
+const save = () => { try { localStorage.setItem(STORE, JSON.stringify(S)); saveFailed = false; } catch(e){ saveFailed = true; } };
+try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch(e){}
+
+let queue = [], loading = false, predHits = 0, predN = 0;
+
+/* ---------- features ---------- */
+const eraOf = y => {
+  if (y == null) return null;
+  if (y < 0) return "Antiquity (BCE)";
+  if (y < 1400) return "Medieval (before 1400)";
+  const c = Math.floor(y/50)*50;
+  return `${c}–${c+49}`;
+};
+const hueOf = c => {
+  if (!c || c.h == null) return null;
+  if (c.s < 12 || c.l < 12) return c.l < 30 ? "Dark & tonal" : "Muted / greyed";
+  const h = c.h;
+  return h < 15 || h >= 345 ? "Reds" : h < 45 ? "Oranges & ochres" : h < 70 ? "Yellows & golds"
+    : h < 160 ? "Greens" : h < 200 ? "Teals" : h < 255 ? "Blues" : h < 290 ? "Violets" : "Pinks & magentas";
+};
+function feats(a){
+  const f = [];
+  const push = (d,v) => { if (v) f.push(d+"|"+v); };
+  push("style", a.style_title); push("artist", a.artist_title); push("era", eraOf(a.date_start));
+  push("place", a.place_of_origin); push("kind", a.classification_title || a.artwork_type_title);
+  (a.subject_titles||[]).slice(0,4).forEach(s => push("subject", s));
+  push("hue", hueOf(a.color));
+  return f;
+}
+
+/* ---------- model: per-feature smoothed log-odds ---------- */
+function tally(){
+  const t = {}; let pos = 0, neg = 0;
+  for (const s of S.swipes){
+    const w = s.v === 2 ? 2 : 1, liked = s.v > 0;
+    liked ? pos += w : neg += w;
+    for (const k of s.f){ const o = t[k] || (t[k] = {p:0,n:0,c:0}); liked ? o.p += w : o.n += w; o.c++; }
+  }
+  return {t,pos,neg};
+}
+function predict(a, T){
+  T = T || tally();
+  if (S.swipes.length < 6) return null;
+  const prior = Math.log((T.pos+1)/(T.neg+1));
+  let z = prior;
+  for (const k of feats(a)){
+    const o = T.t[k]; if (!o) continue;
+    const lo = Math.log((o.p+1)/(o.n+1)) - prior;   // lift over base rate
+    const dim = k.split("|")[0];
+    z += lo * (dim === "subject" ? .35 : dim === "hue" ? .5 : .8) * Math.min(1, o.c/3);
+  }
+  return 1/(1+Math.exp(-z));
+}
+
+/* ---------- fetching ---------- */
+function topLiked(dim, T){
+  return Object.entries(T.t).filter(([k,o]) => k.startsWith(dim+"|") && o.p >= 2 && o.p > o.n)
+    .sort((a,b) => (b[1].p-b[1].n) - (a[1].p-a[1].n)).map(([k]) => k.split("|")[1]);
+}
+// Highlights pool = the museum's own "boosted" works: far fewer minor prints and fragments.
+let boostOK = true;
+const pages = { hi:20, all:90 };
+const poolUrl = (hi, limit) => `${API}?fields=${FIELDS}&limit=${limit}` + (hi
+  ? `&query[bool][must][0][term][is_public_domain]=true&query[bool][must][1][term][is_boosted]=true`
+  : `&query[term][is_public_domain]=true`);
+const shuffle = arr => { for (let i = arr.length-1; i > 0; i--){ const k = Math.floor(Math.random()*(i+1)); [arr[i],arr[k]] = [arr[k],arr[i]]; } return arr; };
+const usable = a => a && a.image_id && !S.seen[a.id] && !queue.some(q => q.id === a.id);
+
+async function getJSON(url){
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
+// Try the highlights pool first; fall back to the full collection if that query fails or comes back empty.
+async function query(extra, limit, kind){
+  if (boostOK){
+    try {
+      const j = await getJSON(poolUrl(true, limit) + extra);
+      if (j.pagination && kind) pages.hi = Math.max(1, Math.min(j.pagination.total_pages || 1, Math.floor(9000/limit)));
+      if ((j.data||[]).length) return j.data;
+      if (!extra.includes("q=")) boostOK = false;
+    } catch(e){ boostOK = false; }
+  }
+  const j = await getJSON(poolUrl(false, limit) + extra.replace(/&page=\d+/, kind ? `&page=${1+Math.floor(Math.random()*pages.all)}` : "$&"));
+  return j.data || [];
+}
+
+async function fetchSeed(){
+  const styles = SEED.slice(S.seedIdx, S.seedIdx + 5);
+  S.seedIdx += styles.length; save();
+  const results = await Promise.all(styles.map(st =>
+    query(`&q=${encodeURIComponent(st)}`, 12).then(d => {
+      const pick = shuffle(d.slice(0, 6).filter(usable))[0] || d.find(usable);
+      if (pick) pick._seed = st;
+      return pick;
+    }).catch(() => null)));
+  return results.filter(Boolean);
+}
+
+async function fetchBatch(){
+  if (loading) return; loading = true;
+  const T = tally();
+  try{
+    let fresh;
+    if (S.seedIdx < SEED.length){
+      fresh = await fetchSeed();
+      if (!fresh.length && S.seedIdx < SEED.length) fresh = await fetchSeed();
+    } else {
+      const refine = S.swipes.length >= 12 && Math.random() > S.explore;
+      const pool = refine ? [...topLiked("style",T).slice(0,4), ...topLiked("artist",T).slice(0,3), ...topLiked("subject",T).slice(0,3), ...topLiked("place",T).slice(0,2)] : [];
+      if (pool.length){
+        const q = pool[Math.floor(Math.random()*pool.length)];
+        fresh = await query(`&q=${encodeURIComponent(q)}&page=${1+Math.floor(Math.random()*3)}`, 40);
+      } else {
+        fresh = await query(`&page=${1+Math.floor(Math.random()*pages.hi)}`, 40, "browse");
+      }
+      fresh = shuffle(fresh.filter(usable));
+      // when refining, front-load the best predicted matches but keep some surprise
+      if (refine) fresh.sort((a,b) => (predict(b,T)||.5) - (predict(a,T)||.5));
+      fresh = fresh.slice(0, 24);
+    }
+    queue.push(...fresh);
+    fresh.slice(0,4).forEach(a => { const im = new Image(); im.src = imgUrl(a); });
+  }catch(e){
+    if (!queue.length) setState("The museum's API didn't answer. Check your connection, then tap to retry.", true);
+  }finally{ loading = false; }
+  if (!document.querySelector(".card")) render();
+}
+const imgUrl = (a, w=843) => `${IIIF}/${a.image_id}/full/${w},/0/default.jpg`;
+
+/* ---------- deck rendering ---------- */
+const deck = document.getElementById("deck");
+function setState(msg, retry){
+  deck.innerHTML = `<div class="state"><p>${msg}</p></div>`;
+  if (retry) deck.firstChild.onclick = () => { setState("Pulling works from the vault…"); fetchBatch(); };
+}
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function cardEl(a, under){
+  const el = document.createElement("article");
+  el.className = "card" + (under ? " under" : "");
+  const p = predict(a);
+  const lq = a.thumbnail && a.thumbnail.lqip ? `<img class="lqip" src="${a.thumbnail.lqip}" alt="">` : "";
+  el.innerHTML = `
+    <div class="frame">${lq}<img class="full" alt="${esc(a.thumbnail && a.thumbnail.alt_text || a.title)}" src="${imgUrl(a)}">
+      <div class="stamp keep">Keep</div><div class="stamp pass">Pass</div><div class="stamp love">Love</div></div>
+    <div class="label">
+      ${a._seed ? `<div class="match">Opening deck · ${esc(a._seed)}</div>` : p != null ? `<div class="match">Predicted fit ${Math.round(p*100)}%</div>` : ""}
+      <div class="who">${esc(a.artist_title || "Unknown maker")}</div>
+      <div class="what">${esc(a.title)}</div>
+      <div class="meta"><span>${esc(a.date_display||"")}</span>${a.style_title?`<span>${esc(a.style_title)}</span>`:""}<span>${esc(a.classification_title||a.artwork_type_title||"")}</span></div>
+    </div>`;
+  const full = el.querySelector(".full");
+  full.onload = () => full.classList.add("on");
+  if (full.complete && full.naturalWidth) full.classList.add("on");   // already cached from preload
+  full.onerror = () => { el.dataset.broken = "1"; };
+  return el;
+}
+function render(){
+  deck.innerHTML = "";
+  if (!queue.length){ setState("Pulling works from the vault…"); fetchBatch(); return; }
+  if (queue[1]) deck.appendChild(cardEl(queue[1], true));
+  const top = cardEl(queue[0]); deck.appendChild(top);
+  top.querySelector(".full").addEventListener("error", () => { queue.shift(); render(); }, {once:true});
+  bindDrag(top);
+  if (queue.length < 8) fetchBatch();
+}
+
+function bindDrag(el){
+  let sx=0, sy=0, dx=0, dy=0, on=false, moved=false;
+  const st = k => el.querySelector(".stamp."+k);
+  el.addEventListener("pointerdown", e => { on=true; moved=false; sx=e.clientX; sy=e.clientY; el.setPointerCapture(e.pointerId); el.classList.add("dragging"); });
+  el.addEventListener("pointermove", e => {
+    if (!on) return; dx = e.clientX-sx; dy = e.clientY-sy; if (Math.abs(dx)+Math.abs(dy) > 8) moved = true;
+    el.style.transform = `translate(${dx}px,${dy}px) rotate(${dx/18}deg)`;
+    st("keep").style.opacity = Math.max(0, Math.min(1, dx/100));
+    st("pass").style.opacity = Math.max(0, Math.min(1, -dx/100));
+    st("love").style.opacity = Math.max(0, Math.min(1, (-dy - Math.abs(dx))/100));
+  });
+  const end = () => {
+    if (!on) return; on=false; el.classList.remove("dragging");
+    if (-dy > 110 && -dy > Math.abs(dx)) decide(2);
+    else if (dx > 100) decide(1);
+    else if (dx < -100) decide(-1);
+    else { el.style.transform=""; el.querySelectorAll(".stamp").forEach(s=>s.style.opacity=0); if (!moved) openSheet(queue[0]); }
+    dx=dy=0;
+  };
+  el.addEventListener("pointerup", end); el.addEventListener("pointercancel", end);
+}
+
+function decide(v){
+  const el = deck.querySelector(".card:not(.under)"); const a = queue[0];
+  if (!el || !a) return;
+  const p = predict(a);
+  if (p != null){ predN++; if ((p >= .5) === (v > 0)) predHits++; }
+  S.swipes.push({ id:a.id, v, f:feats(a), t:Date.now(),
+    a:{ id:a.id, title:a.title, artist_title:a.artist_title, date_display:a.date_display, image_id:a.image_id,
+        style_title:a.style_title, classification_title:a.classification_title, color:a.color } });
+  S.seen[a.id] = 1; save(); nudgeBackup();
+  const x = v === 2 ? 0 : v*innerWidth*1.2, y = v === 2 ? -innerHeight : 40;
+  el.querySelector(".stamp."+(v===2?"love":v>0?"keep":"pass")).style.opacity = 1;
+  el.style.transform = `translate(${x}px,${y}px) rotate(${v===2?0:v*24}deg)`; el.style.opacity = 0;
+  queue.shift();
+  setTimeout(render, 220);
+}
+function undo(){
+  const last = S.swipes.pop(); if (!last) return;
+  delete S.seen[last.id]; save();
+  queue.unshift(Object.assign({}, last.a, {thumbnail:null}));
+  render();
+}
+
+document.getElementById("btnKeep").onclick = () => decide(1);
+document.getElementById("btnPass").onclick = () => decide(-1);
+document.getElementById("btnLove").onclick = () => decide(2);
+document.getElementById("btnUndo").onclick = undo;
+document.getElementById("btnInfo").onclick = () => openSheet(queue[0]);
+addEventListener("keydown", e => {
+  if (e.key === "Escape") { closeSheet(); zoom.hidden = true; }
+  if (document.getElementById("swipe").hidden || !sheet.hidden || e.target.matches("input,textarea")) return;
+  if (e.key === "ArrowRight") decide(1);
+  else if (e.key === "ArrowLeft") decide(-1);
+  else if (e.key === "ArrowUp") { e.preventDefault(); decide(2); }
+  else if (e.key === "Backspace") undo();
+  else if (e.key === "i" || e.key === "I") openSheet(queue[0]);
+});
+
+/* ---------- taste profile ---------- */
+function describe(T){
+  const pick = d => topLiked(d,T)[0];
+  const parts = [];
+  const st = pick("style"), er = pick("era"), pl = pick("place"), kd = pick("kind"), hu = pick("hue"), sb = pick("subject");
+  if (!st && !er && !pl && !kd) return null;
+  let s = "You lean toward ";
+  s += [kd ? kd.toLowerCase() : "works", st ? `in ${st}` : null, pl ? `from ${pl}` : null, er ? `made ${er.match(/^\d/) ? "around " + er : er.toLowerCase()}` : null].filter(Boolean).join(" ");
+  if (sb) s += `, especially ${sb.toLowerCase()} subjects`;
+  if (hu) s += `, with a pull toward ${hu.toLowerCase()}`;
+  return s + ".";
+}
+function renderTaste(){
+  const T = tally(), n = S.swipes.length, kept = S.swipes.filter(s => s.v > 0).length;
+  const body = document.getElementById("tasteBody");
+  const sum = n >= 10 ? describe(T) : null;
+  let h = `<p class="summary">${sum ? esc(sum) : n < 10 ? `Swipe ${10-n} more ${10-n===1?"work":"works"} and a profile will start to form.` : "No clear pattern yet. Keep going; a few more Loves sharpen it fast."}</p>
+    <div class="stats"><div><b>${n}</b><span>Judged</span></div><div><b>${n?Math.round(kept/n*100):0}%</b><span>Kept</span></div>
+    <div><b>${predN>=5?Math.round(predHits/predN*100)+"%":"—"}</b><span>Model right</span></div></div>
+    <div class="mixer"><label for="explore">Discovery mix</label>
+      <input id="explore" type="range" min="0.1" max="0.9" step="0.05" value="${S.explore}">
+      <div class="ends"><span>Refine toward my taste</span><span>Show me anything</span></div></div>`;
+  for (const [d, label] of DIMS){
+    const rows = Object.entries(T.t).filter(([k,o]) => k.startsWith(d+"|") && o.c >= 2)
+      .map(([k,o]) => ({ name:k.split("|")[1], o, s:(o.p+1)/(o.p+o.n+2) }))
+      .sort((a,b) => Math.abs(b.s-.5)*Math.sqrt(b.o.c) - Math.abs(a.s-.5)*Math.sqrt(a.o.c)).slice(0,6)
+      .sort((a,b) => b.s-a.s);
+    h += `<div class="dim"><h2>${label}</h2>`;
+    if (!rows.length) { h += `<p class="empty">Needs a couple of repeat sightings.</p></div>`; continue; }
+    for (const r of rows){
+      const w = Math.abs(r.s-.5)*100, left = r.s >= .5 ? 50 : 50-w, col = r.s >= .5 ? "var(--keep)" : "var(--pass)";
+      h += `<div class="row"><span class="n">${esc(r.name)}<small>${r.o.c}×</small></span>
+        <span class="bar"><i style="left:${left}%;width:${w}%;background:${col}"></i></span>
+        <span class="v">${r.s>=.5?"+":"−"}${Math.round(Math.abs(r.s-.5)*200)}</span></div>`;
+    }
+    h += `</div>`;
+  }
+  const cols = S.swipes.filter(s => s.v > 0 && s.a.color && s.a.color.h != null).slice(-24).map(s => s.a.color);
+  h += `<div class="dim"><h2>Palette you kept</h2>${cols.length ? `<div class="swatches">${cols.map(c=>`<span class="sw" style="background:hsl(${c.h},${c.s}%,${c.l}%)" title="hsl(${c.h}, ${c.s}%, ${c.l}%)"></span>`).join("")}</div>` : `<p class="empty">Keep a few works to see their dominant colors.</p>`}</div>
+    ${dataSection()}
+    <div class="danger" id="danger"><button class="txt" id="resetAsk">Start over</button></div>`;
+  body.innerHTML = h;
+  bindData();
+  document.getElementById("explore").oninput = e => { S.explore = +e.target.value; save(); };
+  document.getElementById("resetAsk").onclick = () => {
+    document.getElementById("danger").innerHTML = `<span>Erase all ${n} swipes? Save a backup first if you might want them.</span><button class="txt warn" id="resetYes">Erase</button><button class="txt" id="resetNo">Keep them</button>`;
+    document.getElementById("resetNo").onclick = renderTaste;
+    document.getElementById("resetYes").onclick = () => { S = blankState(); save(); predHits=predN=0; queue=[]; renderTaste(); render(); };
+  };
+}
+
+/* ---------- collection ---------- */
+function renderColl(){
+  const kept = S.swipes.filter(s => s.v > 0).slice().reverse();
+  const body = document.getElementById("collBody");
+  if (!kept.length){ body.innerHTML = `<p class="empty" style="padding-top:20px">Works you keep or love land here, linked to their museum pages.</p>`; return; }
+  body.innerHTML = `<div class="grid">${kept.map(s => `<a class="tile" href="https://www.artic.edu/artworks/${s.a.id}" target="_blank" rel="noopener">
+    <img loading="lazy" alt="" src="${IIIF}/${s.a.image_id}/full/400,/0/default.jpg">
+    <b>${s.v===2?'<span class="heart">★ </span>':""}${esc(s.a.title)}</b><span>${esc(s.a.artist_title||"Unknown maker")} · ${esc(s.a.date_display||"")}</span></a>`).join("")}</div>`;
+}
+
+/* ---------- tell me more ---------- */
+const sheet = document.getElementById("sheet"), scrim = document.getElementById("scrim"), sheetBody = document.getElementById("sheetBody");
+const DETAIL_FIELDS = "id,title,artist_display,date_display,description,short_description,medium_display,dimensions,credit_line,place_of_origin,technique_titles,theme_titles,style_titles,is_on_view,gallery_title,provenance_text,exhibition_history,image_id";
+const detailCache = {};
+const paras = html => {
+  if (!html) return "";
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const ps = [...doc.querySelectorAll("p")].map(p => p.textContent.trim()).filter(Boolean);
+  return (ps.length ? ps : [doc.body.textContent.trim()]).filter(Boolean).map(t => `<p>${esc(t)}</p>`).join("");
+};
+function openSheet(a){
+  if (!a) return;
+  sheet.hidden = scrim.hidden = false; sheet.scrollTop = 0;
+  const head = `<button class="thumbBtn" id="thumbBtn" aria-label="View full size"><img alt="" src="${imgUrl(a)}"><span>View full size</span></button>
+    <h2>${esc(a.title)}</h2>`;
+  sheetBody.innerHTML = head + `<p class="by">${esc(a.artist_title || "Unknown maker")}${a.date_display ? ", " + esc(a.date_display) : ""}</p><div class="loading">Reading the wall label…</div>`;
+  document.getElementById("thumbBtn").onclick = () => openZoom(a);
+  const fill = d => {
+    if (sheet.hidden) return;
+    const fact = (k, v) => v && (Array.isArray(v) ? v.length : true) ? `<dt>${k}</dt><dd>${esc(Array.isArray(v) ? v.slice(0,6).join(", ") : v)}</dd>` : "";
+    const desc = paras(d.description) || (d.short_description ? `<p>${esc(d.short_description)}</p>` : `<p style="color:var(--ink-soft)">The museum hasn't written a description for this one. You'll have to form your own opinion.</p>`);
+    sheetBody.innerHTML = head + `<p class="by">${esc(d.artist_display || a.artist_title || "Unknown maker")}</p>
+      <div class="desc">${desc}</div>
+      <div class="onview ${d.is_on_view ? "yes" : ""}">${d.is_on_view ? `On view in Chicago${d.gallery_title ? " · " + esc(d.gallery_title) : ""}` : "In storage right now"}</div>
+      <dl class="facts">${fact("Date", d.date_display)}${fact("Medium", d.medium_display)}${fact("Size", d.dimensions)}${fact("Made in", d.place_of_origin)}${fact("Styles", d.style_titles)}${fact("Techniques", d.technique_titles)}${fact("Themes", d.theme_titles)}${fact("Credit", d.credit_line)}</dl>
+      ${d.provenance_text ? `<details><summary>Provenance</summary><div>${esc(d.provenance_text)}</div></details>` : ""}
+      ${d.exhibition_history ? `<details><summary>Exhibition history</summary><div>${esc(d.exhibition_history)}</div></details>` : ""}
+      <a class="out" href="https://www.artic.edu/artworks/${a.id}" target="_blank" rel="noopener">See it on artic.edu ↗</a>`;
+    document.getElementById("thumbBtn").onclick = () => openZoom(a);
+  };
+  if (detailCache[a.id]) return fill(detailCache[a.id]);
+  getJSON(`https://api.artic.edu/api/v1/artworks/${a.id}?fields=${DETAIL_FIELDS}`)
+    .then(j => { detailCache[a.id] = j.data; fill(j.data); })
+    .catch(() => { if (!sheet.hidden) sheetBody.querySelector(".loading").textContent = "Couldn't reach the museum for details. Try again in a moment."; });
+}
+function closeSheet(){ sheet.hidden = scrim.hidden = true; }
+scrim.onclick = closeSheet;
+document.getElementById("sheetDone").onclick = closeSheet;
+// drag the sheet down from the top to dismiss
+(() => { let y0 = null;
+  sheet.addEventListener("touchstart", e => { y0 = sheet.scrollTop <= 0 ? e.touches[0].clientY : null; }, {passive:true});
+  sheet.addEventListener("touchend", e => { if (y0 != null && e.changedTouches[0].clientY - y0 > 90) closeSheet(); y0 = null; });
+})();
+const zoom = document.getElementById("zoom"), zoomImg = document.getElementById("zoomImg");
+function openZoom(a){ zoomImg.src = imgUrl(a, 1686); zoom.classList.remove("big"); zoom.hidden = false; }
+zoomImg.onclick = () => zoom.classList.toggle("big");
+document.getElementById("zoomClose").onclick = () => { zoom.hidden = true; };
+
+/* ---------- toast ---------- */
+const toastEl = document.getElementById("toast"); let toastT;
+function toast(msg){ toastEl.textContent = msg; toastEl.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => toastEl.hidden = true, 3200); }
+
+/* ---------- backup & restore ---------- */
+const enc = obj => "SALON1:" + btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
+function dec(text){
+  text = text.trim();
+  const json = text.startsWith("SALON1:") ? decodeURIComponent(escape(atob(text.slice(7)))) : text;
+  const d = JSON.parse(json);
+  if (!d || !Array.isArray(d.swipes)) throw new Error("shape");
+  return d;
+}
+function backupPayload(){ return { app:"salon-swipe", ver:SCHEMA, exported:new Date().toISOString(), swipes:S.swipes, seen:S.seen, explore:S.explore, seedIdx:S.seedIdx }; }
+function markBackedUp(){ S.lastBackup = Date.now(); S.backupCount = S.swipes.length; save(); document.getElementById("nudge").hidden = true; }
+function mergeIn(d){
+  const byId = new Map(S.swipes.map(s => [s.id, s]));
+  let added = 0;
+  for (const s of d.swipes){
+    if (!s || s.id == null || !Array.isArray(s.f)) continue;
+    const cur = byId.get(s.id);
+    if (!cur) { byId.set(s.id, s); added++; }
+    else if ((s.t||0) > (cur.t||0)) byId.set(s.id, s);
+  }
+  S.swipes = [...byId.values()].sort((a,b) => (a.t||0) - (b.t||0));
+  S.seen = Object.assign({}, d.seen || {}, S.seen);
+  S.swipes.forEach(s => S.seen[s.id] = 1);
+  S.seedIdx = Math.max(S.seedIdx || 0, d.seedIdx || 0);
+  save();
+  return added;
+}
+function nudgeBackup(){
+  const since = S.swipes.length - (S.backupCount || 0);
+  if (since >= 50){
+    document.getElementById("nudgeText").textContent = `${since} swipes since your last backup.`;
+    document.getElementById("nudge").hidden = false;
+  }
+}
+document.getElementById("nudgeGo").onclick = () => { document.getElementById("tab-taste").click(); setTimeout(() => document.getElementById("dataSec")?.scrollIntoView({behavior:"smooth"}), 50); };
+function dataSection(){
+  const last = S.lastBackup ? new Date(S.lastBackup).toLocaleDateString(undefined, {month:"short", day:"numeric", year:"numeric"}) : "never";
+  return `<div class="dim data" id="dataSec"><h2>Your data</h2>
+    <p>${S.swipes.length} swipes saved in this browser${IS_BETA ? " (test copy)" : ""}. Last backup: ${last}.${saveFailed ? " <strong>This browser is refusing to save. Back up now.</strong>" : ""}</p>
+    <div class="btns"><button class="txt" id="bkFile">Save backup file</button><button class="txt" id="bkCopy">Copy backup code</button><button class="txt" id="bkRestoreAsk">Restore…</button></div>
+    <div id="bkRestore" hidden>
+      <p>Pick a backup file or paste a backup code. Swipes are merged; nothing you have now is lost.</p>
+      <div class="btns"><input type="file" id="bkFileIn" accept=".json,application/json,text/plain"></div>
+      <textarea id="bkText" placeholder="SALON1:…"></textarea>
+      <div class="btns" style="margin-top:8px"><button class="txt" id="bkGo">Restore</button></div>
+    </div></div>`;
+}
+function bindData(){
+  document.getElementById("bkFile").onclick = () => {
+    try {
+      const blob = new Blob([JSON.stringify(backupPayload())], {type:"application/json"});
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = `salon-swipe-backup-${new Date().toISOString().slice(0,10)}.json`;
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      markBackedUp(); toast("Backup file saved. Keep it in iCloud Drive or Files."); renderTaste();
+    } catch(e){ toast("Couldn't create the file. Use Copy backup code instead."); }
+  };
+  document.getElementById("bkCopy").onclick = () => {
+    const code = enc(backupPayload());
+    const done = () => { markBackedUp(); toast("Backup code copied. Paste it into Notes to keep it."); renderTaste(); };
+    const fallback = () => {
+      document.getElementById("bkRestore").hidden = false;
+      const t = document.getElementById("bkText"); t.value = code; t.select();
+      toast("Select-all and copy the code shown below.");
+      markBackedUp();
+    };
+    try { navigator.clipboard.writeText(code).then(done, fallback); } catch(e){ fallback(); }
+  };
+  document.getElementById("bkRestoreAsk").onclick = () => { const r = document.getElementById("bkRestore"); r.hidden = !r.hidden; };
+  document.getElementById("bkFileIn").onchange = e => {
+    const f = e.target.files[0]; if (!f) return;
+    f.text().then(t => { document.getElementById("bkText").value = t; });
+  };
+  document.getElementById("bkGo").onclick = () => {
+    try {
+      const d = dec(document.getElementById("bkText").value);
+      const added = mergeIn(d); queue = queue.filter(a => !S.seen[a.id]);
+      toast(`Restored. ${added} new swipes merged; ${S.swipes.length} saved in total.`); renderTaste();
+    } catch(e){ toast("That isn't a Salon Swipe backup. Check that you pasted the whole code."); }
+  };
+}
+
+/* ---------- tabs ---------- */
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x => x.setAttribute("aria-selected", x === b));
+  ["swipe","taste","coll"].forEach(id => document.getElementById(id).hidden = id !== b.dataset.tab);
+  if (b.dataset.tab === "taste") renderTaste();
+  if (b.dataset.tab === "coll") renderColl();
+});
+
+if (IS_BETA){
+  document.querySelector("h1").insertAdjacentHTML("beforeend", '<span class="beta">BETA</span>');
+  document.querySelector("footer").textContent = "Test copy. Swipes here stay separate from your main Salon Swipe data.";
+  document.title = "Salon Swipe Beta";
+}
+nudgeBackup();
+fetchBatch();
+})();
+</script>
+</body>
+</html>
