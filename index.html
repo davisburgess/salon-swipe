@@ -45,16 +45,16 @@ main{flex:1;min-height:0;max-width:560px;width:100%;margin:0 auto;display:flex;f
 section{flex:1;min-height:0;display:flex;flex-direction:column}
 
 /* ---- swipe deck ---- */
-.deck{position:relative;flex:1;min-height:340px}
+.deck{position:relative;flex:1 1 auto;min-height:max(340px,62vh);min-height:max(340px,62dvh)}
 .card{position:absolute;inset:0;display:flex;flex-direction:column;background:var(--mat);
   border-radius:3px;box-shadow:0 1px 0 var(--line),0 18px 40px -18px rgba(0,0,0,.45);
   touch-action:none;user-select:none;will-change:transform;transition:transform .32s cubic-bezier(.2,.8,.2,1),opacity .32s}
 .card.under{transform:scale(.96) translateY(10px);opacity:.75}
 .card.dragging{transition:none}
-.frame{flex:1;min-height:0;margin:18px 18px 0;display:grid;place-items:center;position:relative;background:var(--wall-deep);overflow:hidden}
-.frame img{max-width:100%;max-height:100%;object-fit:contain;display:block;pointer-events:none}
-.frame .lqip{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(14px);transform:scale(1.1);opacity:.7}
-.frame .full{position:relative;opacity:0;transition:opacity .4s}
+.frame{flex:1;min-height:0;margin:18px 18px 0;position:relative;background:var(--wall-deep);overflow:hidden}
+.frame img{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none}
+.frame .lqip{object-fit:cover;filter:blur(14px);transform:scale(1.1);opacity:.7}
+.frame .full{object-fit:contain;opacity:0;transition:opacity .4s}
 .frame .full.on{opacity:1}
 .stamp{position:absolute;top:22px;padding:4px 12px;border:3px solid;border-radius:4px;
   font:700 22px/1.1 var(--f-display);letter-spacing:.06em;text-transform:uppercase;opacity:0;pointer-events:none;z-index:2;background:var(--mat)}
@@ -277,6 +277,7 @@ function cardEl(a, under){
     </div>`;
   const full = el.querySelector(".full");
   full.onload = () => full.classList.add("on");
+  if (full.complete && full.naturalWidth) full.classList.add("on");   // already cached from preload
   full.onerror = () => { el.dataset.broken = "1"; };
   return el;
 }
