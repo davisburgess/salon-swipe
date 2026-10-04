@@ -292,7 +292,56 @@ const poolUrl = (hi, limit) => `${API}?fields=${FIELDS}&limit=${limit}` + (hi
   ? `&query[bool][must][0][term][is_public_domain]=true&query[bool][must][1][term][is_boosted]=true`
   : `&query[term][is_public_domain]=true`);
 const shuffle = arr => { for (let i = arr.length-1; i > 0; i--){ const k = Math.floor(Math.random()*(i+1)); [arr[i],arr[k]] = [arr[k],arr[i]]; } return arr; };
-const usable = a => a && a.image_id && !S.seen[a.id] && !queue.some(q => q.id === a.id);
+/* ---------- no-repeat guardrails ----------
+   1. A work you've swiped never comes back (by museum id).
+   2. Other copies of the same work (a second impression of a print, a duplicate record) are blocked too,
+      matched on title + artist.
+   3. The same artist won't appear twice within ARTIST_GAP cards. */
+const ARTIST_GAP = 6;
+const norm = x => String(x || "").toLowerCase().replace(/\(.*?\)/g, " ").replace(/[^a-z0-9]+/g, " ").trim();
+const GENERIC = new Set(["", "untitled", "fragment", "study", "sketch", "drawing", "print", "photograph", "plate"]);
+const workKey = a => {
+  const t = norm(a && a.title), who = norm(a && a.artist_title);
+  return (!who || GENERIC.has(t)) ? null : t + "|" + who;   // no reliable match for anonymous or generic titles
+};
+let seenKeys = new Set();
+let held = [];   // cards waiting out the artist gap
+const rebuildKeys = () => { seenKeys = new Set(S.swipes.map(s => workKey(s.a)).filter(Boolean)); };
+rebuildKeys();
+const inQueue = a => [...queue, ...held].some(q => q.id === a.id || (workKey(a) && workKey(q) === workKey(a)));
+const usable = a => a && a.image_id && !S.seen[a.id] && !(workKey(a) && seenKeys.has(workKey(a))) && !inQueue(a);
+// Remove duplicates inside one batch (two searches can return the same work).
+function dedupe(list){
+  const ids = new Set(), keys = new Set(), out = [];
+  for (const a of list){
+    if (!usable(a) || ids.has(a.id)) continue;
+    const k = workKey(a);
+    if (k && keys.has(k)) continue;
+    ids.add(a.id); if (k) keys.add(k); out.push(a);
+  }
+  return out;
+}
+// Reorder the waiting cards so no artist repeats within ARTIST_GAP. Cards already on screen stay put.
+// Cards that can't be placed yet wait in `held` and get another chance as the deck moves on.
+function spaceArtists(){
+  const who = a => norm(a.artist_title);
+  const recent = S.swipes.slice(-ARTIST_GAP).map(s => norm(s.a && s.a.artist_title));
+  const waiting = held; held = [];
+  const out = queue.slice(0, 2), rest = [...queue.slice(2), ...waiting.filter(usable)];
+  const tooSoon = a => {
+    const w = who(a); if (!w) return false;
+    return [...recent, ...out.map(who)].slice(-(ARTIST_GAP - 1)).includes(w);
+  };
+  while (rest.length){
+    const i = rest.findIndex(a => !tooSoon(a));
+    if (i === -1){
+      if (out.length < 3) { out.push(rest.shift()); continue; }   // never starve the deck
+      held = rest.slice(0, 60); break;
+    }
+    out.push(rest.splice(i, 1)[0]);
+  }
+  queue = out;
+}
 
 async function getJSON(url){
   const r = await fetch(url);
@@ -318,11 +367,12 @@ async function fetchSeed(){
   S.seedIdx += styles.length; save();
   const results = await Promise.all(styles.map(st =>
     query(`&q=${encodeURIComponent(st)}`, 12).then(d => {
-      const pick = shuffle(d.slice(0, 6).filter(usable))[0] || d.find(usable);
+      const ok = dedupe(d);
+      const pick = shuffle(ok.slice(0, 6))[0];
       if (pick) pick._seed = st;
       return pick;
     }).catch(() => null)));
-  return results.filter(Boolean);
+  return dedupe(results.filter(Boolean));
 }
 
 async function fetchBatch(){
@@ -342,12 +392,13 @@ async function fetchBatch(){
       } else {
         fresh = await query(`&page=${1+Math.floor(Math.random()*pages.hi)}`, 40, "browse");
       }
-      fresh = shuffle(fresh.filter(usable));
+      fresh = shuffle(dedupe(fresh));
       // when refining, front-load the best predicted matches but keep some surprise
       if (refine) fresh.sort((a,b) => (predict(b,T)||.5) - (predict(a,T)||.5));
       fresh = fresh.slice(0, 24);
     }
-    queue.push(...fresh);
+    queue.push(...dedupe(fresh));
+    spaceArtists();
     fresh.slice(0,4).forEach(a => { const im = new Image(); im.src = imgUrl(a); });
   }catch(e){
     if (!queue.length) setState("The museum's API didn't answer. Check your connection, then tap to retry.", true);
@@ -389,7 +440,7 @@ function render(){
   if (!queue.length){ setState("Pulling works from the vault…"); fetchBatch(); return; }
   if (queue[1]) deck.appendChild(cardEl(queue[1], true));
   const top = cardEl(queue[0]); deck.appendChild(top);
-  top.querySelector(".full").addEventListener("error", () => { queue.shift(); render(); }, {once:true});
+  top.querySelector(".full").addEventListener("error", () => { const b = queue.shift(); if (b) S.seen[b.id] = 1; save(); render(); }, {once:true});
   bindDrag(top);
   if (queue.length < 8) fetchBatch();
 }
@@ -424,7 +475,7 @@ function decide(v){
   S.swipes.push({ id:a.id, v, f:feats(a), t:Date.now(),
     a:{ id:a.id, title:a.title, artist_title:a.artist_title, date_display:a.date_display, image_id:a.image_id,
         style_title:a.style_title, classification_title:a.classification_title, color:a.color } });
-  S.seen[a.id] = 1; save(); nudgeBackup();
+  S.seen[a.id] = 1; { const k = workKey(a); if (k) seenKeys.add(k); } save(); nudgeBackup();
   const x = v === 2 ? 0 : v*innerWidth*1.2, y = v === 2 ? -innerHeight : 40;
   el.querySelector(".stamp."+(v===2?"love":v>0?"keep":"pass")).style.opacity = 1;
   el.style.transform = `translate(${x}px,${y}px) rotate(${v===2?0:v*24}deg)`; el.style.opacity = 0;
@@ -433,7 +484,7 @@ function decide(v){
 }
 function undo(){
   const last = S.swipes.pop(); if (!last) return;
-  delete S.seen[last.id]; save();
+  delete S.seen[last.id]; rebuildKeys(); save();
   queue.unshift(Object.assign({}, last.a, {thumbnail:null}));
   render();
 }
@@ -642,7 +693,7 @@ function bindData(){
   document.getElementById("bkGo").onclick = () => {
     try {
       const d = dec(document.getElementById("bkText").value);
-      const added = mergeIn(d); queue = queue.filter(a => !S.seen[a.id]);
+      const added = mergeIn(d); rebuildKeys(); queue = queue.filter(a => !S.seen[a.id] && !(workKey(a) && seenKeys.has(workKey(a))));
       toast(`Restored. ${added} new swipes merged; ${S.swipes.length} saved in total.`); renderTaste();
     } catch(e){ toast("That isn't a Salon Swipe backup. Check that you pasted the whole code."); }
   };
