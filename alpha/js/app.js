@@ -272,7 +272,13 @@ function later(vel) {
 function undo() {
   const h = undoStack.pop(); if (!h) return;
   hideWhy();
-  if (h.type === "defer") {
+  if (h.type === "skip") {
+    const i = deck.queue.indexOf(h.shown);
+    if (i >= 0) { deck.queue.splice(i, 1); deck.pool.push(h.shown); }
+    deck.pool = deck.pool.filter((x) => x !== h.card);
+    state.later = state.later.filter((l) => l.a.uid !== h.card.uid);
+    deck.queue.unshift(h.card);
+  } else if (h.type === "defer") {
     state.later = state.later.filter((l) => l !== h.entry);
     deck.queue.unshift(h.card); persist({ meta: true });
   } else {
@@ -296,9 +302,17 @@ $("#btnInfo").onclick = () => deck.queue[0] && openSheet(deck.queue[0]);
 $("#btnNewStyle").onclick = async (e) => {
   const b = e.currentTarget; b.disabled = true; b.textContent = "Finding one…";
   try {
-    const seed = await deck.newStyle();
-    toast(seed ? `Up next: ${seed.label}` : "Couldn't find a new style just now. Try again in a moment.");
-    renderStage();
+    const res = await deck.newStyle();
+    if (!res) { toast("Couldn't find a new style just now. Try again in a moment."); return; }
+    if (res.skipped) {
+      undoStack.push({ type: "skip", card: res.skipped, shown: deck.queue[0] });
+      // A skipped second look goes back to Later rather than being lost.
+      if (res.skipped._look) state.later.push({ a: res.skipped, n: res.skipped._look - 1, due: state.swipes.length + 3 });
+    }
+    flyOut($(".card.top", stage), "later");
+    say(`New style: ${res.seed.label}`);
+    hideWhy();
+    setTimeout(renderStage, reduceMotion ? 120 : 260);
   } finally { b.disabled = false; b.textContent = "New style"; }
 };
 addEventListener("keydown", (e) => {

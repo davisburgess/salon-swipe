@@ -97,7 +97,12 @@ const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-119
   const before = await p.textContent(".card.top .what"); await p.keyboard.press("ArrowDown"); await p.waitForTimeout(350);
   await p.click("#btnUndo"); await p.waitForTimeout(300); log("undo restored later card:", (await p.textContent(".card.top .what")) === before);
   // New style
-  await p.click("#btnNewStyle"); await p.waitForTimeout(400); log("new style toast:", await p.textContent("#toast"));
+  { const beforeTitle = await p.textContent(".card.top .what"), beforeN = await p.evaluate(() => __pp.state.swipes.length);
+    await p.click("#btnNewStyle"); await p.waitForTimeout(700);
+    log("new style: card changed:", (await p.textContent(".card.top .what")) !== beforeTitle, "| cue:", (await p.textContent(".card.top .cue p")).trim(),
+      "| no vote recorded:", (await p.evaluate(() => __pp.state.swipes.length)) === beforeN);
+    await p.click("#btnUndo"); await p.waitForTimeout(400);
+    log("undo after new style restores card:", (await p.textContent(".card.top .what")) === beforeTitle); }
   // Swipe until Docent
   for (let i = 0; i < 40; i++) { await p.waitForSelector(".card.top", { timeout: 8000 }); if (await p.isVisible("#modal:not([hidden])")) break; await p.keyboard.press(i % 3 ? "ArrowRight" : "ArrowLeft"); await p.waitForTimeout(280); }
   await p.waitForSelector("#modal:not([hidden])", { timeout: 5000 }).catch(() => {});

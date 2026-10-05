@@ -224,3 +224,17 @@ test("vision measures brightness and warmth", () => {
   const v = measure(px, w, h);
   assert.ok(v.warm > 0.5); assert.ok(v.sat > 0.6); assert.equal(v.edges, 0);
 });
+
+test("New style replaces the current work without recording a decision", async () => {
+  const st = blank(); st.seedIdx = OPENING.length; let n = 0;
+  const d = deckWith(st, (src, q) => Array.from({ length: 6 }, () => mk(++n, { movement: null, artist: `A${n}` })));
+  await d.refill(); d.topUp(3);
+  const current = d.queue[0];
+  const res = await d.newStyle();
+  assert.ok(res && res.seed);
+  assert.equal(d.queue[0]._why, "newstyle");
+  assert.equal(res.skipped, current);
+  assert.equal(st.swipes.length, 0, "no vote recorded");
+  assert.ok(!st.seen[current.uid]);
+  assert.ok(d.pool.includes(current), "skipped work can come back later");
+});

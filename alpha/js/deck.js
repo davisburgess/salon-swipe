@@ -169,7 +169,14 @@ export class Deck {
     const list = opts.length ? opts : shuffle(OPENING.slice(), this.rand);
     for (const seed of list.slice(0, 4)) {
       const a = await this.fetchSeed(seed);
-      if (a) { a._why = "newstyle"; this.queue.splice(Math.min(1, this.queue.length), 0, a); return seed; }
+      if (a) {
+        // Replace the work on screen without judging it; it goes back into the pool and may return later.
+        a._why = "newstyle";
+        const skipped = this.queue.shift();
+        if (skipped && !skipped._look) { delete skipped._why; this.pool.push(skipped); }
+        this.queue.unshift(a);
+        return { seed, skipped };
+      }
     }
     return null;
   }
