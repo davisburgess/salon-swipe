@@ -1,0 +1,96 @@
+# Deploys the Picture Plane API to Cloudflare and points the alpha at it.
+# Needs repository secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, and (for Curator's Notes) ANTHROPIC_API_KEY.
+name: Deploy API
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["worker/**", ".github/workflows/deploy-api.yml"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deploy-api
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check secrets
+        id: check
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::warning::Add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID as repository secrets to deploy the API."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.ready == 'true'
+        with:
+          node-version: 20
+
+      - name: Install Wrangler
+        if: steps.check.outputs.ready == 'true'
+        run: npm install -g wrangler@3
+
+      - name: Create or find the database
+        if: steps.check.outputs.ready == 'true'
+        working-directory: worker
+        run: |
+          ID=$(wrangler d1 list --json | jq -r '.[] | select(.name=="picture-plane") | .uuid')
+          if [ -z "$ID" ]; then
+            wrangler d1 create picture-plane
+            ID=$(wrangler d1 list --json | jq -r '.[] | select(.name=="picture-plane") | .uuid')
+          fi
+          test -n "$ID"
+          sed -i "s/__D1_ID__/$ID/" wrangler.toml
+          wrangler d1 execute picture-plane --remote --file schema.sql
+
+      - name: Deploy the worker
+        if: steps.check.outputs.ready == 'true'
+        working-directory: worker
+        run: |
+          wrangler deploy | tee deploy.log
+          URL=$(grep -oE 'https://[a-zA-Z0-9.-]+\.workers\.dev' deploy.log | head -1)
+          if [ -z "$URL" ]; then
+            echo "::error::Couldn't find the workers.dev URL. If this is a new Cloudflare account, open Workers & Pages once in the dashboard to choose a workers.dev subdomain, then re-run."
+            exit 1
+          fi
+          echo "API_URL=$URL" >> "$GITHUB_ENV"
+
+      - name: Set the Claude API key
+        if: steps.check.outputs.ready == 'true' && env.ANTHROPIC_API_KEY != ''
+        working-directory: worker
+        run: echo "$ANTHROPIC_API_KEY" | wrangler secret put ANTHROPIC_API_KEY
+
+      - name: Check the API answers
+        if: steps.check.outputs.ready == 'true'
+        run: |
+          for i in 1 2 3 4 5 6; do
+            if curl -fsS "$API_URL/v1/health"; then echo; exit 0; fi
+            sleep 5
+          done
+          echo "::error::The API didn't answer at $API_URL/v1/health"; exit 1
+
+      - name: Point the alpha at the API
+        if: steps.check.outputs.ready == 'true'
+        run: |
+          printf '{ "base": "%s" }\n' "$API_URL" > alpha/api.json
+          if ! git diff --quiet -- alpha/api.json || [ -n "$(git status --porcelain alpha/api.json)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add alpha/api.json
+            git commit -m "Point the alpha at the deployed API"
+            git push
+          fi

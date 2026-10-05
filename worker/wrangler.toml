@@ -1,0 +1,14 @@
+# Picture Plane API. Deployed by .github/workflows/deploy-api.yml; the database id is filled in at deploy time.
+name = "picture-plane-api"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+workers_dev = true
+
+[vars]
+ALLOWED_ORIGINS = "https://davisburgess.github.io,http://localhost:8123,http://127.0.0.1:8123"
+NOTES_MODEL = "claude-sonnet-5-5"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "picture-plane"
+database_id = "__D1_ID__"
