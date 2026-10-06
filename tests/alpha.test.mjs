@@ -213,9 +213,18 @@ test("offline note draws only on facts we have", () => {
   const st = blank(); const m = new TasteModel();
   for (let i = 0; i < 40; i++) { const like = i % 2 === 0; const r = record(st, mk(i, { movement: like ? "Impressionism" : "Baroque", artist: null }), like ? 2 : -1); if (like) r.why = ["Light"]; m.learn(r.f, r.v); }
   const f = profileFacts(st, m);
-  const note = templateNote(f, "Docent");
-  assert.match(note.text, /Impressionism/); assert.match(note.text, /Baroque/); assert.match(note.text, /light/);
+  const note = templateNote(f, "Docent", { seed: 1 });
+  assert.match(note.text, /Impressionism/); assert.match(note.text, /Baroque/);
   assert.equal(note.title, "You're now a Docent");
+  // Consecutive notes differ: new angles, different phrasing, and tone changes the voice.
+  const texts = new Set(); let avoid = [];
+  for (let i = 0; i < 4; i++) { const n = templateNote(f, null, { seed: 100 + i, avoid }); texts.add(n.text); avoid = avoid.concat(n.angles).slice(-9); }
+  assert.equal(texts.size, 4, "four notes, four different texts");
+  const a = templateNote(f, null, { seed: 7 }), b = templateNote(f, null, { seed: 7, avoid: a.angles });
+  assert.ok(!a.angles.includes(b.angles[0]), "second note leads with a fresh angle");
+  const crit = templateNote(f, null, { seed: 7, tone: "critic" }).text;
+  for (const [, k, n] of crit.matchAll(/(\d+) of (\d+) kept/g)) assert.ok(+k <= +n, "kept count never exceeds works seen");
+  assert.notEqual(templateNote(f, null, { seed: 7, tone: "docent" }).text, templateNote(f, null, { seed: 7, tone: "cheeky" }).text);
 });
 
 test("vision measures brightness and warmth", () => {

@@ -365,8 +365,11 @@ async function makeNote(levelName) {
   if (api.apiBase() && state.sync.key) {
     try { const r = await api.writeNote(state, facts, levelName); if (r && r.text) note = { title: r.title, text: r.text, ai: true }; } catch (e) { /* fall back */ }
   }
-  if (!note) note = { ...templateNote(facts, levelName), ai: false };
-  note = { ...note, id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, level: levelName, tone: note.ai ? state.settings.tone : "cheeky", t: Date.now() };
+  if (!note) {
+    const avoid = state.notes.slice(-3).flatMap((n) => n.angles || []);
+    note = { ...templateNote(facts, levelName, { tone: state.settings.tone, avoid }), ai: false };
+  }
+  note = { ...note, id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, level: levelName, tone: note.tone || state.settings.tone, t: Date.now() };
   state.notes.push(note); persist({ meta: true });
   return note;
 }
@@ -483,6 +486,9 @@ function renderTaste() {
   </div>`;
   $("#toneSel").onchange = (e) => { state.settings.tone = e.target.value; persist({ meta: true }); };
   $("#noteNow").onclick = async (e) => {
+    const last = state.notes[state.notes.length - 1];
+    const since = last ? state.swipes.filter((x) => x.t > last.t).length : Infinity;
+    if (since < 5 && last && last.tone === state.settings.tone) { toast(`Judge ${5 - since} more ${5 - since === 1 ? "work" : "works"} first, or switch the tone for a new take.`); return; }
     e.currentTarget.disabled = true; e.currentTarget.textContent = "Writing…";
     await makeNote(null); renderTaste();
   };
