@@ -111,7 +111,19 @@ const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-119
   if (await p.isVisible("#modalOk")) await p.click("#modalOk");
   await p.click("#tab-taste"); await p.waitForTimeout(200); await p.screenshot({ path: `${OUT}/07-taste.png`, fullPage: false });
   await p.evaluate(() => document.querySelector("#view-taste").scrollTo(0, 900)); await p.screenshot({ path: `${OUT}/07b-taste-lower.png` });
-  await p.click("#tab-kept"); await p.waitForTimeout(500); await p.screenshot({ path: `${OUT}/08-kept.png` });
+  await p.click("#tab-kept"); await p.waitForTimeout(500);
+  { const lovedBefore = await p.evaluate(() => __pp.state.swipes.filter((s) => s.v === 2).length);
+    const first = p.locator(".tile-wrap .lovebtn[aria-pressed=false]").first(); const uid = await first.getAttribute("data-uid");
+    await first.click(); await p.waitForTimeout(200);
+    const rec = await p.evaluate((u) => __pp.state.swipes.find((s) => s.uid === u), uid);
+    log("love from Kept: v =", rec.v, "| loved count", lovedBefore, "->", await p.evaluate(() => __pp.state.swipes.filter((s) => s.v === 2).length), "| dirty for sync:", await p.evaluate((u) => __pp.state.sync.dirty.includes(u), uid));
+    await p.locator(`.tile-wrap .lovebtn[data-uid="${uid}"]`).click(); await p.waitForTimeout(200);
+    log("unlove from Kept: v =", await p.evaluate((u) => __pp.state.swipes.find((s) => s.uid === u).v, uid));
+    await p.locator(".tile").first().click(); await p.waitForSelector("#sheet.open");
+    const sl = await p.textContent(".sheet-love"); await p.click(".sheet-love .lovebtn"); await p.waitForTimeout(200);
+    log("sheet toggle:", sl.trim(), "->", (await p.textContent(".sheet-love")).trim());
+    await p.click("#sheetDone"); await p.waitForTimeout(300); }
+  await p.screenshot({ path: `${OUT}/08-kept.png` });
   await p.click("#tab-settings"); await p.waitForTimeout(200); await p.screenshot({ path: `${OUT}/09-settings.png` });
   const st = await p.evaluate(() => JSON.parse(localStorage.getItem("pp-alpha-v1")));
   log("stored:", { swipes: st.swipes.length, level: st.level, notes: st.notes.length, badges: Object.keys(st.badges), later: st.later.length, whyOnLove: st.swipes.filter((s) => s.why).length });

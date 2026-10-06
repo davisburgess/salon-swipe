@@ -202,7 +202,15 @@ textarea { width: 100%; min-height: 84px; font-size: 12.5px; }
 .tile img { width: 100%; aspect-ratio: 1; object-fit: contain; background: var(--wall-deep); }
 .tile .t { font: 400 15px/1.25 var(--serif); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .tile .a { font-size: 12.5px; color: var(--ink-2); }
-.tile .love { color: var(--gilt); font-weight: 400; }
+.tile-wrap { position: relative; }
+.lovebtn { width: 40px; height: 40px; border-radius: 50%; border: 0; display: grid; place-items: center; color: var(--ink-2);
+  background: color-mix(in srgb, var(--paper) 88%, transparent); box-shadow: 0 2px 8px -3px rgba(0,0,0,.35); transition: transform .12s, color .2s; }
+.lovebtn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; }
+.lovebtn[aria-pressed="true"] { color: var(--gilt); }
+.lovebtn[aria-pressed="true"] svg { fill: currentColor; }
+.lovebtn:active { transform: scale(.9); }
+.tile-wrap .lovebtn { position: absolute; top: 6px; right: 6px; }
+.sheet-love { display: flex; align-items: center; gap: 10px; margin: 2px 0 10px; font-size: 14px; color: var(--ink-2); }
 
 .settings section { border-top: 1px solid var(--line); padding: 4px 0 10px; }
 .settings h2 { margin-top: 16px; }

@@ -404,12 +404,19 @@ function openSheet(a) {
     <h2 class="sheet-title"><cite>${esc(a.title)}</cite></h2>
     <p class="sheet-who">${esc(a.artist || "Unknown maker")}${a.artistBio ? `<br><span>${esc(a.artistBio)}</span>` : ""}</p>
     <div id="sheetText" class="prose">${(a.paras && a.paras.length) ? a.paras.map((p) => `<p>${esc(p)}</p>`).join("") : `<p class="muted">Reading the wall text…</p>`}</div>
+    ${(() => { const r = state.swipes.find((s) => s.uid === a.uid); return r && r.v > 0 ? `<p class="sheet-love">${loveBtn(r)}<span>${r.v === 2 ? "Loved" : "Kept. Tap the star to love it."}</span></p>` : ""; })()}
     <p class="onview ${a.onView ? "yes" : ""}" id="onview">${a.onView ? `On view now${a.gallery ? `: ${esc(a.gallery)}` : ""}, ${esc(museumShort(a.src))}` : `In storage at ${esc(a.museum || "the museum")}`}</p>
     ${scaleSVG(a.dimsCm)}
     <dl class="facts">${facts}</dl>
     ${reasons}
     <p><a class="out" href="${esc(a.url)}" target="_blank" rel="noopener">See it on the ${esc(a.museum || "museum")} website</a></p>`;
   $("#zoomBtn").onclick = () => openZoom(a);
+  const refreshLove = (rec) => {
+    const wrap = $(".sheet-love", $("#sheetBody"));
+    if (wrap) { wrap.innerHTML = `${loveBtn(rec)}<span>${rec.v === 2 ? "Loved" : "Kept. Tap the star to love it."}</span>`; bindLoveBtns(wrap, refreshLove); }
+    if (currentView === "kept") renderKept();
+  };
+  bindLoveBtns($("#sheetBody"), refreshLove);
   sheet.hidden = scrim.hidden = false; sheet.scrollTop = 0;
   requestAnimationFrame(() => sheet.classList.add("open"));
   $("#sheetDone").focus({ preventScroll: true });
@@ -493,11 +500,35 @@ function renderKept() {
       ${[["all", `All (${all.length})`], ["loved", `Loved (${all.filter((s) => s.v === 2).length})`], ["chicago", "On view in Chicago"]].map(([k, l]) => `<button class="chip" aria-pressed="${keptFilter === k}" data-f="${k}">${l}</button>`).join("")}
     </div>
     ${keptFilter === "chicago" ? `<p class="muted small">On view when you saw it. Galleries change, so check the museum site before a visit.</p>` : ""}
-    ${list.length ? `<ul class="grid">${list.map((s, i) => `<li><button class="tile" data-i="${i}"><img loading="lazy" src="${esc(thumb(s.a))}" alt=""><span class="t"><cite>${esc(s.a.title)}</cite></span><span class="a">${esc(s.a.artist || "Unknown maker")}${s.v === 2 ? ' <b class="love" aria-label="Loved">★</b>' : ""}</span></button></li>`).join("")}</ul>`
+    ${list.length ? `<ul class="grid">${list.map((s, i) => `<li class="tile-wrap"><button class="tile" data-i="${i}"><img loading="lazy" src="${esc(thumb(s.a))}" alt=""><span class="t"><cite>${esc(s.a.title)}</cite></span><span class="a">${esc(s.a.artist || "Unknown maker")}</span></button>${loveBtn(s)}</li>`).join("")}</ul>`
       : `<p class="muted">Nothing here yet. Swipe right on a work to keep it.</p>`}
   </div>`;
   $$(".filters .chip").forEach((b) => (b.onclick = () => { keptFilter = b.dataset.f; renderKept(); }));
   $$(".tile").forEach((b) => (b.onclick = () => openSheet(list[+b.dataset.i].a)));
+  bindLoveBtns($("#view-kept"), () => renderKept());
+}
+
+/* ---------- Loved (favorites) from Kept and the wall text ---------- */
+const loveBtn = (s) => `<button type="button" class="lovebtn" data-uid="${esc(s.uid)}" aria-pressed="${s.v === 2}" aria-label="${s.v === 2 ? "Loved. Tap to keep it as a regular keep" : "Mark as loved"}: ${esc(s.a.title)}">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 16.6l-5.2 2.8 1-5.9L3.5 9.4l5.9-.8z"/></svg></button>`;
+// Changing your mind later is a real signal: the record is updated, timestamped, synced, and the model retrains.
+function setLoved(uid, on) {
+  const rec = state.swipes.find((s) => s.uid === uid);
+  if (!rec || rec.v <= 0) return null;
+  rec.v = on ? 2 : 1; rec.t = Date.now();
+  state.sync.dirty.push(uid);
+  model.fit(state.swipes);
+  persist();
+  afterDecision(rec);
+  say(on ? `Loved: ${rec.a.title}` : `Kept, no longer loved: ${rec.a.title}`);
+  return rec;
+}
+function bindLoveBtns(root, rerender) {
+  $$(".lovebtn", root).forEach((b) => (b.onclick = (e) => {
+    e.stopPropagation();
+    const rec = setLoved(b.dataset.uid, b.getAttribute("aria-pressed") !== "true");
+    if (rec) rerender(rec);
+  }));
 }
 
 /* ---------- Settings ---------- */
