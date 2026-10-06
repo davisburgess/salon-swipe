@@ -1,0 +1,55 @@
+# Runs every check on every push, and probes the real museum APIs every night.
+name: Checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 11 * * *"   # 7:17 a.m. Eastern (EDT)
+
+jobs:
+  features:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install the test browser
+        run: |
+          npm install --no-save playwright@1.56.0
+          npx playwright install --with-deps chromium
+      - name: Unit and backend tests
+        run: node --test tests/*.test.mjs
+      - name: Feature review in a real browser
+        run: |
+          mkdir -p test-results
+          python3 -m http.server 8123 --bind 127.0.0.1 >/dev/null 2>&1 &
+          sleep 1
+          node tests/e2e.mjs test-results | tee test-results/report.txt
+      - name: What this push touched
+        if: always()
+        run: |
+          node tests/impact.mjs HEAD~1 >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"; cat test-results/report.txt >> "$GITHUB_STEP_SUMMARY" || true; echo '```' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots
+          path: test-results/
+
+  live-museums:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Probe the real museum APIs
+        run: node tests/live-smoke.mjs | tee -a "$GITHUB_STEP_SUMMARY"

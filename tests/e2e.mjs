@@ -1,167 +1,304 @@
-// End-to-end run of the alpha in headless Chromium with all three museums mocked
-// and the real Worker code serving the API in-process. Usage: node tests/e2e.mjs <screenshot dir>
-import { chromium } from "/opt/npm-tools/node_modules/playwright/index.mjs";
-import { readFileSync } from "node:fs";
-import { DatabaseSync } from "node:sqlite";
-import worker from "../worker/src/index.js";
+// Full-feature browser review of the alpha. Every check is named after a feature id in tests/features.mjs.
+// Usage: node tests/e2e.mjs [screenshot-dir]     (serve the repo root at BASE, default http://127.0.0.1:8123)
+import { mkdirSync, readFileSync } from "node:fs";
+import { loadPlaywright, chromiumPath, mockWorld, d1 } from "./harness.mjs";
+import { FEATURES } from "./features.mjs";
 
-const OUT = process.argv[2] || ".";
-const IMG = process.env.IMGDIR;
-const imgs = [0, 1, 2, 3, 4, 5].map((i) => readFileSync(`${IMG}/p${i}.jpg`));
-const STYLES = ["Impressionism", "Baroque", "Ukiyo-e", "Realism", "Cubism", "Romanticism", "Symbolism", "Rococo", "Expressionism", "Renaissance", "Post-Impressionism", "Fauvism"];
-let n = 1000;
-const aicItem = (q) => { n++; const st = q && STYLES.includes(q) ? q : STYLES[n % STYLES.length];
-  return { id: n, title: `${["Morning", "Harbor", "Portrait of a Lady", "Still Life with Pears", "The Bridge", "Evening Fields"][n % 6]} ${n}`,
-    artist_title: `Painter ${n % 17}`, artist_display: `Painter ${n % 17}\nFrench, 1840–1910`, date_display: `${1700 + (n % 220)}`, date_start: 1700 + (n % 220),
-    style_title: st, classification_title: "painting", place_of_origin: ["France", "Japan", "Netherlands", "Italy"][n % 4],
-    medium_display: n % 3 ? "Oil on canvas" : "Color woodblock print", image_id: `p${n % 6}-${n}`, color: { h: (n * 47) % 360, s: 40, l: 45 },
-    thumbnail: { lqip: null, width: 900, height: 700, alt_text: "A painting" }, subject_titles: ["landscapes", "water"],
-    dimensions: `${50 + (n % 80)} × ${60 + (n % 70)} cm`, dimensions_detail: [{ height: 50 + (n % 80), width: 60 + (n % 70) }],
-    credit_line: "Mr. and Mrs. Martin A. Ryerson Collection", is_on_view: n % 2 === 0, gallery_title: "Gallery 243", is_public_domain: true }; };
+const OUT = process.argv[2] || "test-results"; mkdirSync(OUT, { recursive: true });
+const ROOT = process.env.BASE || "http://127.0.0.1:8123";
+const APP = `${ROOT}/alpha/`;
+const { chromium } = await loadPlaywright();
+const browser = await chromium.launch({ executablePath: chromiumPath() });
 
-function d1() {
-  const db = new DatabaseSync(":memory:");
-  db.exec(readFileSync(new URL("../worker/schema.sql", import.meta.url), "utf8"));
-  const stmt = (sql, args = []) => { const order = [...sql.matchAll(/\?(\d+)/g)].map((m) => +m[1] - 1); const vals = order.map((i) => args[i]);
-    const s = db.prepare(sql.replace(/\?(\d+)/g, "?"));
-    return { bind: (...a) => stmt(sql, a), run: async () => s.run(...vals), first: async () => s.get(...vals) ?? null, all: async () => ({ results: s.all(...vals) }), _exec: () => s.run(...vals) }; };
-  return { prepare: (sql) => stmt(sql), batch: async (l) => { db.exec("BEGIN"); l.forEach((x) => x._exec()); db.exec("COMMIT"); } };
+const results = new Map();
+const expect = (cond, msg) => { if (!cond) throw new Error(msg); };
+async function check(id, fn) {
+  try { const d = await fn(); results.set(id, { ok: true, detail: typeof d === "string" ? d : "" }); }
+  catch (e) { results.set(id, { ok: false, detail: String(e.message || e).split("\n")[0].slice(0, 160) }); }
 }
-
-async function setup(ctx, { backend = false, env } = {}) {
-  await ctx.route("https://fonts.googleapis.com/**", (r) => r.fulfill({ status: 200, contentType: "text/css", body: "" }));
-  await ctx.route("https://api.artic.edu/api/v1/artworks/search**", (r) => { const q = new URL(r.request().url()).searchParams.get("q");
-    r.fulfill({ json: { pagination: { total_pages: 30 }, data: Array.from({ length: 12 }, () => aicItem(q)) } }); });
-  await ctx.route(/api\.artic\.edu\/api\/v1\/artworks\/\d+\?/, (r) => r.fulfill({ json: { data: { description: "<p>Painted outdoors in a single sitting, the canvas records <em>one</em> moment of light.</p><p>The artist returned to this motif many times.</p>", is_on_view: true, gallery_title: "Gallery 243" } } }));
-  await ctx.route("https://www.artic.edu/iiif/**", (r) => { const id = r.request().url().split("/iiif/2/")[1].split("/")[0]; const k = +id[1] || 0;
-    r.fulfill({ status: 200, contentType: "image/jpeg", body: imgs[k], headers: { "access-control-allow-origin": "*" } }); });
-  await ctx.route("https://collectionapi.metmuseum.org/**", (r) => { const u = r.request().url();
-    if (u.includes("/search")) return r.fulfill({ json: { total: 40, objectIDs: Array.from({ length: 40 }, (_, i) => 5000 + i) } });
-    const id = +u.split("/objects/")[1];
-    r.fulfill({ json: { objectID: id, isPublicDomain: true, primaryImageSmall: `https://images.metmuseum.org/fake/p${id % 6}.jpg`, primaryImage: `https://images.metmuseum.org/fake/p${id % 6}.jpg`,
-      title: `Met work ${id}`, artistDisplayName: `Met artist ${id % 9}`, artistDisplayBio: "Dutch, 1600–1660", objectDate: "1650", objectBeginDate: 1650, medium: "Oil on wood",
-      dimensions: "40 × 32 cm", creditLine: "Bequest of Benjamin Altman, 1913", classification: "Paintings", tags: [{ term: "Interiors" }], objectURL: `https://www.metmuseum.org/art/collection/search/${id}`, GalleryNumber: "" } }); });
-  await ctx.route("https://openaccess-api.clevelandart.org/**", (r) => r.fulfill({ json: { data: Array.from({ length: 10 }, (_, i) => { const id = 9000 + n++;
-    return { id, accession_number: `1915.${id}`, title: `Cleveland work ${id}`, creation_date: "c. 1880", creation_date_earliest: 1880, culture: ["America"], technique: "watercolor", type: "Drawing",
-      measurements: "Sheet: 35 x 50 cm", creators: [{ description: `Cleveland artist ${id % 7} (American, 1850–1920)` }], share_license_status: "CC0",
-      images: { web: { url: `https://openaccess-cdn.clevelandart.org/fake/p${id % 6}.jpg`, width: "900", height: "700" } }, wall_description: "A quick study in watercolor.", url: "https://www.clevelandart.org/art/x", current_location: null }; }) } }));
-  await ctx.route(/(images\.metmuseum\.org|openaccess-cdn\.clevelandart\.org)\/fake\//, (r) => { const k = +(r.request().url().match(/p(\d)\.jpg/) || [0, 0])[1];
-    r.fulfill({ status: 200, contentType: "image/jpeg", body: imgs[k] }); });
-  if (backend) {
-    await ctx.route("**/alpha/api.json", (r) => r.fulfill({ json: { base: "https://api.test" } }));
-    await ctx.route("https://api.test/**", async (r) => {
-      const q = r.request();
-      const res = await worker.fetch(new Request(q.url(), { method: q.method(), headers: q.headers(), body: ["GET", "HEAD", "OPTIONS"].includes(q.method()) ? undefined : q.postData() }), env);
-      r.fulfill({ status: res.status, headers: Object.fromEntries(res.headers), body: await res.text() });
-    });
-  } else await ctx.route("**/alpha/api.json", (r) => r.fulfill({ status: 404, body: "" }));
+const pp = (p, fn, arg) => p.evaluate(fn, arg);
+const topTitle = (p) => p.textContent(".card.top .what");
+async function waitTop(p) { await p.waitForSelector(".card.top.loaded", { timeout: 10000 }); await p.waitForTimeout(150); }
+async function press(p, key, n = 1) { for (let i = 0; i < n; i++) { await waitTop(p); if (await p.isVisible("#modal:not([hidden])")) { const ok = await p.$("#modalOk"); if (ok) await ok.click(); } await p.keyboard.press(key); await p.waitForTimeout(300); } }
+async function drag(p, dx, dy) {
+  await waitTop(p);
+  const b = await p.locator(".card.top").boundingBox(); const x = b.x + b.width / 2, y = b.y + b.height * 0.4;
+  await p.mouse.move(x, y); await p.mouse.down(); await p.mouse.move(x + dx * 0.4, y + dy * 0.4, { steps: 5 }); await p.mouse.move(x + dx, y + dy, { steps: 5 }); await p.mouse.up();
+  await p.waitForTimeout(450);
 }
+const store = (p) => pp(p, () => JSON.parse(localStorage.getItem("pp-alpha-v1")));
 
-const log = (...a) => console.log(...a);
-const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
-
-/* ---------- Run 1: offline-only, light theme, phone ---------- */
+/* ================= Session A: phone, light, no backend, existing Salon Swipe history ================= */
 {
-  const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, colorScheme: "light", hasTouch: false });
-  await setup(ctx);
-  const p = await ctx.newPage(); const errs = []; p.on("pageerror", (e) => errs.push(e.message)); p.on("console", (m) => m.type() === "error" && !/api\.json/.test(m.text()) && errs.push(m.text()));
-  // Salon Swipe history on the same origin
-  await p.goto("http://127.0.0.1:8123/alpha/");
-  await p.evaluate(() => { localStorage.clear(); localStorage.setItem("salon-swipe-v1", JSON.stringify({ swipes: Array.from({ length: 12 }, (_, i) => ({ id: 70000 + i, v: i % 3 ? 1 : -1, f: [`style|${i % 2 ? "Impressionism" : "Baroque"}`], t: i + 1, a: { id: 70000 + i, title: `Old ${i}`, artist_title: `Old artist ${i}`, image_id: `p${i % 6}-old${i}`, style_title: i % 2 ? "Impressionism" : "Baroque" } })) })); });
-  await p.reload(); await p.waitForSelector("#modal:not([hidden])");
-  log("onboarding import button:", await p.textContent("#obImport"));
-  await p.screenshot({ path: `${OUT}/01-onboarding.png` });
-  await p.click("#obImport"); log("toast:", await p.textContent("#toast"));
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, colorScheme: "light", acceptDownloads: true, serviceWorkers: "block" });
+  const calls = await mockWorld(ctx);
+  const p = await ctx.newPage(); const errs = [];
+  p.on("pageerror", (e) => errs.push(e.message));
+  p.on("console", (m) => m.type() === "error" && !/Failed to load resource/.test(m.text()) && errs.push(m.text()));
+  await p.goto(APP);
+  await pp(p, () => { localStorage.clear(); localStorage.setItem("salon-swipe-v1", JSON.stringify({ swipes: Array.from({ length: 12 }, (_, i) => ({ id: 70000 + i, v: i % 3 ? 1 : -1, f: [`style|${i % 2 ? "Impressionism" : "Baroque"}`], t: i + 1, a: { id: 70000 + i, title: `Old ${i}`, artist_title: `Old artist ${i}`, image_id: `p${i % 6}-old${i}`, style_title: i % 2 ? "Impressionism" : "Baroque" } })) })); });
+  await p.reload();
+
+  await check("app.onboarding", async () => { await p.waitForSelector("#modal:not([hidden]) #obGo"); await p.screenshot({ path: `${OUT}/onboarding.png` }); });
+  await check("data.import", async () => {
+    expect(/12 decisions/.test(await p.textContent("#obImport")), "import offer missing");
+    await p.click("#obImport"); const s = await store(p); expect(s.swipes.length === 12, `imported ${s.swipes.length}`);
+    expect(s.swipes.every((x) => x.uid.startsWith("aic:")), "uids not converted");
+  });
   await p.click("#obGo");
-  await p.waitForSelector(".card.top.loaded", { timeout: 8000 });
-  await p.waitForTimeout(600);
-  log("first cue:", (await p.textContent(".card.top .cue")).trim().replace(/\s+/g, " "));
-  await p.screenshot({ path: `${OUT}/02-look.png` });
-  // Drag right with the mouse
-  const box = await p.locator(".card.top").boundingBox();
-  await p.mouse.move(box.x + box.width / 2, box.y + 200); await p.mouse.down(); await p.mouse.move(box.x + box.width / 2 + 90, box.y + 210, { steps: 6 });
-  await p.screenshot({ path: `${OUT}/03-dragging.png` });
-  await p.mouse.move(box.x + box.width / 2 + 220, box.y + 220, { steps: 6 }); await p.mouse.up(); await p.waitForTimeout(450);
-  // Love with the button -> why tray
-  await p.click("#btnLove"); await p.waitForSelector("#why:not([hidden])"); await p.click('#why .chip[data-c="Light"]');
-  await p.screenshot({ path: `${OUT}/04-why.png` });
-  await p.waitForTimeout(300);
-  // Tap the label -> wall text
-  await p.waitForSelector(".card.top.loaded");
-  const lb = await p.locator(".card.top .label").boundingBox(); await p.mouse.click(lb.x + 20, lb.y + 10);
-  await p.waitForSelector("#sheet.open"); await p.waitForTimeout(500);
-  log("sheet text:", (await p.textContent("#sheetText")).trim().slice(0, 60), "| scale figure:", await p.isVisible(".scale"));
-  await p.screenshot({ path: `${OUT}/05-walltext.png` });
-  await p.click("#sheetDone");
-  // Later via keyboard, then undo
-  const before = await p.textContent(".card.top .what"); await p.keyboard.press("ArrowDown"); await p.waitForTimeout(350);
-  await p.click("#btnUndo"); await p.waitForTimeout(300); log("undo restored later card:", (await p.textContent(".card.top .what")) === before);
-  // New style
-  { const beforeTitle = await p.textContent(".card.top .what"), beforeN = await p.evaluate(() => __pp.state.swipes.length);
-    await p.click("#btnNewStyle"); await p.waitForTimeout(700);
-    log("new style: card changed:", (await p.textContent(".card.top .what")) !== beforeTitle, "| cue:", (await p.textContent(".card.top .cue p")).trim(),
-      "| no vote recorded:", (await p.evaluate(() => __pp.state.swipes.length)) === beforeN);
-    await p.click("#btnUndo"); await p.waitForTimeout(400);
-    log("undo after new style restores card:", (await p.textContent(".card.top .what")) === beforeTitle); }
-  // Swipe until Docent
-  for (let i = 0; i < 40; i++) { await p.waitForSelector(".card.top", { timeout: 8000 }); if (await p.isVisible("#modal:not([hidden])")) break; await p.keyboard.press(i % 3 ? "ArrowRight" : "ArrowLeft"); await p.waitForTimeout(280); }
-  await p.waitForSelector("#modal:not([hidden])", { timeout: 5000 }).catch(() => {});
-  log("level modal:", (await p.textContent("#modalBody").catch(() => "none")).replace(/\s+/g, " ").slice(0, 200));
-  await p.screenshot({ path: `${OUT}/06-levelup.png` });
-  if (await p.isVisible("#modalOk")) await p.click("#modalOk");
-  await p.click("#tab-taste"); await p.waitForTimeout(200); await p.screenshot({ path: `${OUT}/07-taste.png`, fullPage: false });
-  await p.evaluate(() => document.querySelector("#view-taste").scrollTo(0, 900)); await p.screenshot({ path: `${OUT}/07b-taste-lower.png` });
-  await p.click("#tab-kept"); await p.waitForTimeout(500);
-  { const lovedBefore = await p.evaluate(() => __pp.state.swipes.filter((s) => s.v === 2).length);
-    const first = p.locator(".tile-wrap .lovebtn[aria-pressed=false]").first(); const uid = await first.getAttribute("data-uid");
-    await first.click(); await p.waitForTimeout(200);
-    const rec = await p.evaluate((u) => __pp.state.swipes.find((s) => s.uid === u), uid);
-    log("love from Kept: v =", rec.v, "| loved count", lovedBefore, "->", await p.evaluate(() => __pp.state.swipes.filter((s) => s.v === 2).length), "| dirty for sync:", await p.evaluate((u) => __pp.state.sync.dirty.includes(u), uid));
-    await p.locator(`.tile-wrap .lovebtn[data-uid="${uid}"]`).click(); await p.waitForTimeout(200);
-    log("unlove from Kept: v =", await p.evaluate((u) => __pp.state.swipes.find((s) => s.uid === u).v, uid));
-    await p.locator(".tile").first().click(); await p.waitForSelector("#sheet.open");
-    const sl = await p.textContent(".sheet-love"); await p.click(".sheet-love .lovebtn"); await p.waitForTimeout(200);
-    log("sheet toggle:", sl.trim(), "->", (await p.textContent(".sheet-love")).trim());
-    await p.click("#sheetDone"); await p.waitForTimeout(300); }
-  await p.screenshot({ path: `${OUT}/08-kept.png` });
-  await p.click("#tab-settings"); await p.waitForTimeout(200); await p.screenshot({ path: `${OUT}/09-settings.png` });
-  const st = await p.evaluate(() => JSON.parse(localStorage.getItem("pp-alpha-v1")));
-  log("stored:", { swipes: st.swipes.length, level: st.level, notes: st.notes.length, badges: Object.keys(st.badges), later: st.later.length, whyOnLove: st.swipes.filter((s) => s.why).length });
-  const uids = st.swipes.map((s) => s.uid); log("duplicate decisions:", uids.length - new Set(uids).size);
-  log("errors run 1:", errs);
+  await check("look.opening", async () => {
+    await waitTop(p); const cue = await p.textContent(".card.top .cue");
+    expect(/Opening hang 1 of 34: Impressionism/.test(cue), `first card: ${cue.slice(0, 60)}`);
+    await press(p, "ArrowRight"); expect(/Opening hang 2 of 34: Ancient Egypt/.test(await p.textContent(".card.top .cue")), "second card not Ancient Egypt");
+    await p.reload(); await waitTop(p);
+    expect(/Opening hang 2 of 34: Ancient Egypt/.test(await p.textContent(".card.top .cue")), "reload skipped an unseen tradition");
+  });
+  await check("look.wall", async () => {
+    const s = await pp(p, () => { const img = document.querySelector(".card.top .work"), lab = document.querySelector(".card.top .label");
+      const ir = img.getBoundingClientRect(), lr = lab.getBoundingClientRect();
+      return { ar: ir.width / ir.height, nat: img.naturalWidth / img.naturalHeight, gap: lr.top - ir.bottom, wh: getComputedStyle(document.documentElement).getPropertyValue("--wh").trim() }; });
+    expect(Math.abs(s.ar - s.nat) < 0.02, `aspect ${s.ar.toFixed(3)} vs ${s.nat.toFixed(3)}`);
+    expect(s.gap >= 0 && s.gap < 40, `label ${s.gap}px from art`);
+    expect(s.wh !== "220", "wall tint never set");
+    await p.screenshot({ path: `${OUT}/look.png` });
+  });
+  await check("look.gestures", async () => {
+    let n = (await store(p)).swipes.length;
+    await drag(p, 240, 10); let s = await store(p); expect(s.swipes.length === n + 1 && s.swipes.at(-1).v === 1, "drag right didn't keep"); n++;
+    await drag(p, -240, 10); s = await store(p); expect(s.swipes.at(-1).v === -1, "drag left didn't pass"); n++;
+    await drag(p, 0, -260); s = await store(p); expect(s.swipes.at(-1).v === 2, "drag up didn't love");
+    if (await p.isVisible("#why:not([hidden])")) await p.keyboard.press("Escape");
+    const before = (await store(p)).later.length; await drag(p, 0, 260); expect((await store(p)).later.length === before + 1, "drag down didn't defer");
+    const t = await topTitle(p); await drag(p, 30, 5); expect(await topTitle(p) === t, "a short drag shouldn't decide");
+    if (await p.isVisible("#sheet:not([hidden])")) await p.click("#sheetDone");
+  });
+  await check("look.buttons", async () => {
+    const n = (await store(p)).swipes.length;
+    await waitTop(p); await p.click("#btnKeep"); await p.waitForTimeout(350); await waitTop(p); await p.click("#btnPass"); await p.waitForTimeout(350);
+    await press(p, "ArrowRight"); await press(p, "ArrowLeft");
+    const s = await store(p); expect(s.swipes.length === n + 4, `expected 4 decisions, got ${s.swipes.length - n}`);
+    await waitTop(p); await p.keyboard.press("i"); await p.waitForSelector("#sheet.open"); await p.keyboard.press("Escape"); expect(await p.isHidden("#sheet"), "Escape didn't close wall text");
+  });
+  await check("look.why", async () => {
+    await waitTop(p); await p.click("#btnLove"); await p.waitForSelector("#why:not([hidden])");
+    await p.click('#why .chip[data-c="Light"]'); await p.click('#why .chip[data-c="Color"]');
+    const s = await store(p); expect(JSON.stringify(s.swipes.at(-1).why) === '["Light","Color"]', `why = ${JSON.stringify(s.swipes.at(-1).why)}`);
+    await p.screenshot({ path: `${OUT}/why.png` }); await p.keyboard.press("Escape");
+  });
+  await check("look.undo", async () => {
+    const a = await topTitle(p); await press(p, "ArrowRight"); const b = await topTitle(p); await press(p, "ArrowDown");
+    await p.click("#btnUndo"); await p.waitForTimeout(300); expect(await topTitle(p) === b, "undo of Later failed");
+    await p.click("#btnUndo"); await p.waitForTimeout(300); expect(await topTitle(p) === a, "undo of keep failed");
+    expect(!(await store(p)).swipes.some((s) => a.startsWith(s.a.title + ",") || a === s.a.title), "undone decision still stored");
+  });
+  await check("look.newstyle", async () => {
+    const t = await topTitle(p), n = (await store(p)).swipes.length;
+    await p.click("#btnNewStyle"); await p.waitForTimeout(800); await waitTop(p);
+    expect(await topTitle(p) !== t, "card didn't change"); expect(/New style:/.test(await p.textContent(".card.top .cue")), "no New style label");
+    expect((await store(p)).swipes.length === n, "a vote was recorded");
+    await p.click("#btnUndo"); await p.waitForTimeout(400); expect(await topTitle(p) === t, "undo didn't restore the skipped work");
+  });
+  await check("look.later", async () => {
+    await waitTop(p); const t = await topTitle(p); const L0 = (await store(p)).later.length; await press(p, "ArrowDown");
+    expect((await store(p)).later.length === L0 + 1, `Later didn't register (sheet open: ${await p.isVisible("#sheet:not([hidden])")}, modal: ${await p.isVisible("#modal:not([hidden])")})`);
+    // Fast-forward: make it due now, then take one decision so it's released next.
+    await pp(p, () => { __pp.state.later.forEach((l) => (l.due = 0)); });
+    await press(p, "ArrowLeft");
+    let found = false;
+    for (let i = 0; i < 4 && !found; i++) { await waitTop(p); if ((await topTitle(p)) === t) found = true; else await press(p, "ArrowLeft"); }
+    expect(found, `deferred work didn't come back; queue: ${JSON.stringify(await pp(p, () => __pp.deck.queue.map((a) => a.title + (a._look ? "*" : ""))))}, target ${t}`);
+    expect(/Second look/.test(await p.textContent(".card.top .cue")), "not labelled Second look");
+    await p.waitForSelector("#sheet.open", { timeout: 2000 }).catch(() => { throw new Error("wall text didn't open on second look"); });
+    await p.click("#sheetDone");
+    await pp(p, () => { const a = __pp.deck.queue[0]; a._look = 3; });
+    await press(p, "ArrowDown");
+    const s = await store(p); expect(s.swipes.some((x) => t.startsWith(x.a.title) && x.v === 0), "third Later didn't mark undecided");
+  });
+  await check("wall.sheet", async () => {
+    await waitTop(p); const lb = await p.locator(".card.top .label").boundingBox(); await p.mouse.click(lb.x + 20, lb.y + 10);
+    await p.waitForSelector("#sheet.open"); await p.waitForTimeout(400);
+    const txt = await p.textContent("#sheetBody");
+    expect(/single sitting|watercolor|description/.test(txt), "no description"); expect(/On view now|In storage/.test(txt), "no gallery status");
+    expect(await p.isVisible(".facts dt"), "no facts"); expect(await p.isVisible("a.out"), "no museum link");
+    await p.screenshot({ path: `${OUT}/walltext.png` });
+  });
+  await check("wall.scale", async () => { expect(await p.isVisible(".scale svg .person"), "no person"); expect(/170 cm/.test(await p.textContent(".scale figcaption")), "no caption"); });
+  await check("wall.zoom", async () => {
+    await p.click("#zoomBtn"); await p.waitForSelector("#zoom:not([hidden])"); await p.click("#zoomImg");
+    expect(await pp(p, () => document.querySelector("#zoom").classList.contains("big")), "tap didn't zoom");
+    await p.click("#zoomClose"); expect(await p.isHidden("#zoom"), "zoom didn't close"); await p.click("#sheetDone");
+  });
+  await check("taste.levels", async () => {
+    // The level-up may already have happened during earlier checks (press() dismisses it); either way it must be recorded.
+    for (let i = 0; i < 40 && (await store(p)).level < 1; i++) {
+      await waitTop(p);
+      if (await p.isVisible("#modal:not([hidden])")) { await p.screenshot({ path: `${OUT}/levelup.png` }); await p.click("#modalOk"); continue; }
+      await p.keyboard.press(i % 3 ? "ArrowRight" : "ArrowLeft"); await p.waitForTimeout(280);
+    }
+    await p.waitForTimeout(500);
+    if (await p.isVisible("#modal:not([hidden])")) { expect(/Docent/.test(await p.textContent("#modalBody")), "level modal isn't Docent"); await p.screenshot({ path: `${OUT}/levelup.png` }); await p.click("#modalOk"); }
+    const s = await store(p); expect(s.level >= 1, "never reached Docent"); expect(s.notes.some((n) => /Docent/.test(n.title)), "no level-up note saved");
+    expect(/Docent/.test(await p.textContent("#levelChip")), "level chip not updated");
+  });
+  await check("wall.reasons", async () => {
+    let ok = false;
+    for (let i = 0; i < 6 && !ok; i++) { await waitTop(p); await p.keyboard.press("i"); await p.waitForSelector("#sheet.open"); ok = await p.isVisible(".reasons li"); await p.click("#sheetDone"); if (!ok) await press(p, "ArrowRight"); }
+    expect(ok, "no 'Why you're seeing this' after training");
+  });
+  await check("look.cue", async () => {
+    const seen = new Set();
+    for (let i = 0; i < 30; i++) { await waitTop(p); const c = await p.getAttribute(".card.top .cue", "class"); seen.add(c.replace("cue ", "")); await press(p, i % 2 ? "ArrowRight" : "ArrowLeft"); }
+    expect(seen.has("cue-match") || seen.has("cue-unsure") || seen.has("cue-explore"), `cues seen: ${[...seen].join(",")}`);
+    return [...seen].join(", ");
+  });
+  await check("taste.notes", async () => {
+    await p.click("#tab-taste"); await p.waitForSelector(".notes .note");
+    const first = await p.textContent(".notes .note p");
+    await p.click("#tab-look"); await press(p, "ArrowRight", 6); await p.click("#tab-taste");
+    await p.click("#noteNow"); await p.waitForTimeout(400);
+    const second = await p.textContent(".notes .note p"); expect(second !== first, "new note repeated the last one");
+    await p.screenshot({ path: `${OUT}/taste.png` });
+  });
+  await check("taste.tone", async () => {
+    await p.selectOption("#toneSel", "docent"); await p.click("#noteNow"); await p.waitForTimeout(400);
+    const s = await store(p); expect(s.settings.tone === "docent" && s.notes.at(-1).tone === "docent", `tone ${s.notes.at(-1).tone}`);
+    await p.selectOption("#toneSel", "cheeky");
+  });
+  await check("taste.badges", async () => { const n = await p.locator(".badges li.earned").count(); expect(n >= 1, "no badges shown as earned"); return `${n} earned`; });
+  await check("taste.leanings", async () => {
+    expect(await p.locator(".dim .row").count() > 2, "no leanings"); expect(/Why you love/.test(await p.textContent("#view-taste")), "no reasons section");
+    expect(/Left you undecided/.test(await p.textContent("#view-taste")), "no undecided list");
+  });
+  await check("kept.grid", async () => {
+    await p.click("#tab-kept"); await p.waitForSelector(".tile");
+    const all = await p.locator(".tile").count();
+    await p.click('.filters .chip[data-f="loved"]'); const loved = await p.locator(".tile").count();
+    await p.click('.filters .chip[data-f="chicago"]'); const chi = await p.locator(".tile").count();
+    await p.click('.filters .chip[data-f="all"]');
+    const s = await store(p);
+    expect(all === s.swipes.filter((x) => x.v > 0).length, "All count wrong"); expect(loved === s.swipes.filter((x) => x.v === 2).length, "Loved count wrong");
+    expect(chi === s.swipes.filter((x) => x.v > 0 && x.a.src === "aic" && x.a.onView).length, "Chicago count wrong");
+    return `${all} kept, ${loved} loved, ${chi} on view`;
+  });
+  await check("kept.love", async () => {
+    const btn = p.locator(".tile-wrap .lovebtn[aria-pressed=false]").first(); const uid = await btn.getAttribute("data-uid");
+    await btn.click(); await p.waitForTimeout(150); expect((await store(p)).swipes.find((s) => s.uid === uid).v === 2, "star didn't love");
+    await p.locator(`.tile-wrap .lovebtn[data-uid="${uid}"]`).click(); await p.waitForTimeout(150); expect((await store(p)).swipes.find((s) => s.uid === uid).v === 1, "star didn't unlove");
+    await p.locator(".tile").first().click(); await p.waitForSelector("#sheet.open .sheet-love"); await p.click(".sheet-love .lovebtn");
+    expect(/Loved/.test(await p.textContent(".sheet-love")), "sheet star didn't update"); await p.click("#sheetDone");
+    await p.screenshot({ path: `${OUT}/kept.png` });
+  });
+  await check("settings.discovery", async () => {
+    await p.click("#tab-settings"); await p.fill("#explore", "0.8"); await p.dispatchEvent("#explore", "input");
+    await p.reload(); expect((await store(p)).settings.explore === 0.8, "slider not saved");
+  });
+  await check("settings.museums", async () => {
+    await p.click("#tab-settings"); await p.uncheck('[data-src="met"]'); await p.uncheck('[data-src="cma"]');
+    const before = { ...calls };
+    await pp(p, async () => { __pp.deck.pool = []; await __pp.deck.refill(); });
+    const srcs = await pp(p, () => [...new Set(__pp.deck.pool.map((a) => a.src))]);
+    expect(srcs.length === 1 && srcs[0] === "aic", `pool sources: ${srcs}`); expect(calls.met === before.met && calls.cma === before.cma, "disabled museums were still called");
+    await p.check('[data-src="met"]'); await p.check('[data-src="cma"]');
+  });
+  await check("data.backup", async () => {
+    const n = (await store(p)).swipes.length;
+    const [dl] = await Promise.all([p.waitForEvent("download"), p.click("#bkSave")]);
+    const name = dl.suggestedFilename(); expect(/^picture-plane-\d{4}-\d{2}-\d{2}-\d{4}-\d+decisions\.json$/.test(name), `filename ${name}`);
+    const file = `${OUT}/${name}`; await dl.saveAs(file);
+    await p.click("#resetAsk"); await p.click("#cYes"); await p.waitForLoadState(); await p.waitForTimeout(300);
+    expect((await store(p)).swipes.length === 0, "reset didn't erase");
+    if (await p.isVisible("#obGo")) await p.click("#obGo");
+    await p.click("#tab-settings"); await p.click("#bkRestore"); await p.setInputFiles("#bkFile", file); await p.waitForTimeout(200); await p.click("#bkGo");
+    expect((await store(p)).swipes.length === n, `restored ${(await store(p)).swipes.length} of ${n}`);
+    await p.click("#bkRestore"); await p.fill("#bkText", "not a backup"); await p.click("#bkGo"); expect(/isn't a Picture Plane/.test(await p.textContent("#toast")), "bad paste not explained");
+    return name;
+  });
+  await check("data.reset", async () => { expect(results.get("data.backup")?.ok, "covered by data.backup (erase then restore)"); });
+  await check("look.norepeat", async () => { const u = (await store(p)).swipes.map((s) => s.uid); expect(u.length === new Set(u).size, `${u.length - new Set(u).size} repeats`); return `${u.length} decisions, 0 repeats`; });
+  await check("app.install", async () => {
+    const m = await (await p.request.get(`${APP}manifest.webmanifest`)).json();
+    expect(m.name && m.display === "standalone" && m.icons.length >= 3, "manifest incomplete");
+    for (const i of m.icons) expect((await p.request.get(APP + i.src)).ok(), `icon ${i.src} missing`);
+    expect(await p.getAttribute('link[rel="apple-touch-icon"]', "href"), "no Apple touch icon");
+  });
+  await check("app.privacy", async () => {
+    await p.click("#tab-settings"); const href = await p.getAttribute('a[href="./privacy.html"]', "href"); expect(href, "no privacy link");
+    const r = await p.request.get(APP + "privacy.html"); expect(r.ok() && /No tracking/.test(await r.text()), "privacy page missing");
+    expect(/not affiliated/.test(await p.textContent("#view-settings")), "no independence statement");
+  });
+  await check("app.errors", async () => { expect(!errs.length, errs.slice(0, 2).join(" | ")); });
   await ctx.close();
 }
 
-/* ---------- Run 2: dark theme, backend connected, two devices ---------- */
+/* ================= Session B: broken images ================= */
+await check("look.broken", async () => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
+  await mockWorld(ctx, { brokenImages: new Set(["p3", "p4", "p5"]) });
+  const p = await ctx.newPage(); await p.goto(APP); await pp(p, () => { localStorage.clear(); localStorage.setItem("pp-alpha-v1", JSON.stringify({ onboarded: true, seedIdx: 34 })); }); await p.reload();
+  for (let i = 0; i < 14; i++) { await waitTop(p); const src = await p.getAttribute(".card.top .work", "src"); expect(!/\/iiif\/2\/p3/.test(src), "a broken image was shown"); await p.keyboard.press("ArrowRight"); await p.waitForTimeout(260); }
+  const s = await store(p); expect(Object.keys(s.seen).some((u) => !s.swipes.some((x) => x.uid === u)), "broken works weren't retired");
+  await ctx.close();
+});
+
+/* ================= Session C: every museum down ================= */
+await check("look.outage", async () => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
+  await mockWorld(ctx, { down: new Set(["aic", "met", "cma"]) });
+  const p = await ctx.newPage(); await p.goto(APP); await pp(p, () => { localStorage.clear(); localStorage.setItem("pp-alpha-v1", JSON.stringify({ onboarded: true })); }); await p.reload();
+  await p.waitForSelector("#retry", { timeout: 15000 });
+  expect(/aren't answering/.test(await p.textContent(".empty")), "no outage message");
+  await p.screenshot({ path: `${OUT}/outage.png` }); await ctx.close();
+});
+
+/* ================= Session E: offline after first visit ================= */
+await check("app.offline", async () => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await mockWorld(ctx);
+  const p = await ctx.newPage(); await p.goto(APP);
+  await pp(p, async () => { localStorage.setItem("pp-alpha-v1", JSON.stringify({ onboarded: true })); await navigator.serviceWorker.ready; });
+  await p.reload(); await p.waitForSelector(".tabbar"); await p.waitForTimeout(500);   // second visit fills the shell cache
+  await ctx.setOffline(true);
+  await p.reload(); await p.waitForSelector(".topbar .wordmark", { timeout: 8000 });
+  const ok = await p.isVisible(".tabbar") && await p.isVisible("#controls"); await ctx.setOffline(false); await ctx.close();
+  expect(ok, "app shell didn't load offline");
+});
+
+/* ================= Session D: backend, two devices, dark ================= */
 {
-  const env = { DB: d1(), ALLOWED_ORIGINS: "http://127.0.0.1:8123", ANTHROPIC_API_KEY: "k" };
+  const env = { DB: d1(), ALLOWED_ORIGINS: ROOT, ANTHROPIC_API_KEY: "k" };
   const realFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) => String(url).startsWith("https://api.anthropic.com")
-    ? new Response(JSON.stringify({ content: [{ type: "text", text: '{"title":"A taste for weather","note":"You keep choosing skies over saints. Bright, loose, outdoors. The Baroque keeps knocking and you keep not answering. Try a Turner storm next."}' }] }), { status: 200 })
+    ? new Response(JSON.stringify({ content: [{ type: "text", text: '{"title":"A taste for weather","note":"You keep choosing skies over saints."}' }] }), { status: 200 })
     : realFetch(url, init);
-  const ctxA = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, colorScheme: "dark" });
-  await setup(ctxA, { backend: true, env });
-  const a = await ctxA.newPage(); const errs = []; a.on("pageerror", (e) => errs.push(e.message));
-  await a.goto("http://127.0.0.1:8123/alpha/"); await a.evaluate(() => localStorage.clear()); await a.reload();
-  await a.click("#obGo"); await a.waitForSelector(".card.top.loaded"); await a.waitForTimeout(500);
-  await a.screenshot({ path: `${OUT}/10-look-dark.png` });
-  for (let i = 0; i < 18; i++) { await a.keyboard.press(i % 2 ? "ArrowRight" : "ArrowUp"); await a.waitForTimeout(260); if (await a.isVisible("#why:not([hidden])")) await a.keyboard.press("Escape"); }
-  await a.click("#tab-settings"); await a.click("#syncOn"); await a.waitForTimeout(600);
-  log("sync toast:", await a.textContent("#toast"));
-  await a.click("#pairLink"); const link = await a.inputValue("#pairText"); log("pair link ok:", /#pair=[A-Za-z0-9_-]{24}$/.test(link));
-  await a.click("#tab-taste"); await a.click("#noteNow"); await a.waitForTimeout(600);
-  log("AI note:", (await a.textContent(".notes .note")).replace(/\s+/g, " ").slice(0, 120));
-  await a.screenshot({ path: `${OUT}/11-taste-dark.png` });
-  // Device B opens the pairing link
-  const ctxB = await b.newContext({ viewport: { width: 1280, height: 860 }, colorScheme: "light" });
-  await setup(ctxB, { backend: true, env });
-  const bp = await ctxB.newPage();
-  await bp.goto(link.replace("127.0.0.1:8123", "127.0.0.1:8123")); await bp.waitForSelector("#pairYes"); await bp.click("#pairYes"); await bp.waitForTimeout(800);
-  const stB = await bp.evaluate(() => JSON.parse(localStorage.getItem("pp-alpha-v1")));
-  log("device B received decisions:", stB.swipes.length, "| notes:", stB.notes.length);
-  await bp.waitForSelector(".card.top.loaded"); await bp.waitForTimeout(500);
-  await bp.screenshot({ path: `${OUT}/12-desktop.png` });
-  log("errors run 2:", errs);
-  globalThis.fetch = realFetch;
+  const ca = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: "dark", serviceWorkers: "block" }); await mockWorld(ca, { backend: true, env });
+  const a = await ca.newPage(); await a.goto(APP); await pp(a, () => localStorage.clear()); await a.reload(); await a.click("#obGo");
+  for (let i = 0; i < 18; i++) { await waitTop(a); await a.keyboard.press(i % 2 ? "ArrowRight" : "ArrowLeft"); await a.waitForTimeout(260); }
+  await a.screenshot({ path: `${OUT}/look-dark.png` });
+  let link = "";
+  await check("sync.devices", async () => {
+    await a.click("#tab-settings"); await a.click("#syncOn"); await a.waitForTimeout(600);
+    await a.click("#pairLink"); link = await a.inputValue("#pairText"); expect(/#pair=[A-Za-z0-9_-]{24}$/.test(link), "bad pairing link");
+    const cb = await browser.newContext({ viewport: { width: 1280, height: 860 }, serviceWorkers: "block" }); await mockWorld(cb, { backend: true, env });
+    const b = await cb.newPage(); await b.goto(link); await b.click("#pairYes"); await b.waitForTimeout(800);
+    const nb = (await store(b)).swipes.length, na = (await store(a)).swipes.length;
+    expect(nb === na, `device B has ${nb} of ${na}`);
+    await waitTop(b); await b.screenshot({ path: `${OUT}/desktop.png` }); await cb.close();
+    return `${nb} decisions on both`;
+  });
+  await check("sync.notes", async () => {
+    await a.click("#tab-taste"); await a.click("#noteNow"); await a.waitForTimeout(600);
+    expect(/A taste for weather/.test(await a.textContent(".notes .note")), "AI note not shown");
+  });
+  globalThis.fetch = realFetch; await ca.close();
 }
-await b.close();
+await browser.close();
+
+/* ================= Report ================= */
+const e2eIds = new Set(FEATURES.flatMap((f) => f.checks.filter((c) => c.startsWith("e2e:")).map((c) => c.slice(4))));
+const missing = [...e2eIds].filter((id) => !results.has(id));
+let fail = 0;
+console.log("\nFeature checks (browser)\n");
+for (const [id, r] of results) { if (!r.ok) fail++; console.log(`${r.ok ? "PASS" : "FAIL"}  ${id.padEnd(20)} ${r.detail}`); }
+for (const id of missing) { fail++; console.log(`MISS  ${id.padEnd(20)} listed in features.mjs but never checked`); }
+console.log(`\n${results.size - fail + missing.length} passed, ${fail} failed or missing, of ${e2eIds.size} required browser checks`);
+process.exit(fail ? 1 : 0);

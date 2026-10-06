@@ -5,7 +5,7 @@ import { OPENING, TONES, WHY_CHIPS } from "./curation.js";
 import { search, details, isAvailable, health as srcHealth, MUSEUMS } from "./sources.js";
 import { TasteModel, features } from "./model.js";
 import { Deck, MAX_DEFERS } from "./deck.js";
-import { load, save, saveFailed, record, mergeSwipes, backupPayload, parseBackup, encodeCode, fromSalonSwipe, compact } from "./store.js";
+import { load, save, saveFailed, record, STORE_KEY, mergeSwipes, backupPayload, parseBackup, encodeCode, fromSalonSwipe, compact } from "./store.js";
 import { stats, levelFor, BADGES, LEVELS, profileFacts, templateNote } from "./rewards.js";
 import * as api from "./sync.js";
 import { analyze } from "./vision.js";
@@ -86,7 +86,8 @@ function cueFor(a) {
     ? { k: "look", text: "Last look. Choosing Later again marks it undecided." }
     : { k: "look", text: "Second look. The wall text is open to help you decide." };
   if (a._why === "newstyle" && a._seed) return { k: "seed", text: `New style: ${a._seed.label}, ${a._seed.years}`, sub: a._seed.why };
-  if (a._seed) return { k: "seed", text: `Opening hang: ${a._seed.label}, ${a._seed.years}`, sub: a._seed.why };
+  if (a._seed) { const i = OPENING.findIndex((o) => o.id === a._seed.id) + 1;
+    return { k: "seed", text: `Opening hang ${i} of ${OPENING.length}: ${a._seed.label}, ${a._seed.years}`, sub: a._seed.why }; }
   if (!model.trained) return { k: "explore", text: "Still getting to know you." };
   const f = features(a), p = model.p(f), why = model.explain(f).filter((x) => x.dir === (p >= 0.5 ? "+" : "-"));
   a._p = p;
@@ -148,7 +149,9 @@ function dropBroken(a) {
 function renderStage() {
   if (currentView !== "look") return;
   stage.innerHTML = "";
+  const waiting = state.later.length;
   deck.releaseLater(); deck.topUp();
+  if (state.later.length !== waiting) persist({ meta: true });
   const [a, b] = deck.queue;
   if (!a) {
     stage.innerHTML = `<div class="empty"><p>Hanging the next works…</p></div>`;
@@ -317,7 +320,9 @@ $("#btnNewStyle").onclick = async (e) => {
 };
 addEventListener("keydown", (e) => {
   if (e.key === "Escape") { closeSheet(); closeZoom(); hideWhy(); closeModal(); return; }
-  if (currentView !== "look" || !$("#sheet").hidden || !$("#modal").hidden || e.target.closest("input,textarea,select")) return;
+  if (currentView !== "look" || !$("#modal").hidden || e.target.closest("input,textarea,select")) return;
+  // Deciding while the wall text is open closes it and acts on the work you were reading about.
+  if (!$("#sheet").hidden) { if (!/^Arrow/.test(e.key)) return; closeSheet(); }
   const k = { ArrowRight: () => decide(1), ArrowLeft: () => decide(-1), ArrowUp: () => decide(2), ArrowDown: () => later(), Backspace: undo, i: () => deck.queue[0] && openSheet(deck.queue[0]) }[e.key];
   if (k) { e.preventDefault(); k(); }
 });
@@ -687,7 +692,11 @@ function handlePairLink() {
   if (!handlePairLink()) onboarding();
   await api.configure();
   if (state.sync.key) runSync();
-  if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("./sw.js").catch(() => {});
+  if ("serviceWorker" in navigator && (location.protocol === "https:" || /^(localhost|127\.0\.0\.1)$/.test(location.hostname))) navigator.serviceWorker.register("./sw.js").catch(() => {});
   try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}
-  addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") { save(state); if (state.sync.key) runSync(); } });
+  // Every change is saved the moment it happens, so leaving the page only needs to kick off a sync.
+  // (Saving again here could overwrite newer data written by another tab.)
+  addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && state.sync.key) runSync(); });
+  // Another tab changed your collection: reload so this tab never writes over it with stale data.
+  addEventListener("storage", (e) => { if (e.key === STORE_KEY && e.newValue) location.reload(); });
 })();
