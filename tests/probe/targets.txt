@@ -16,3 +16,6 @@ met_search|application/json|https://collectionapi.metmuseum.org/public/collectio
 met_search_plain|application/json|https://collectionapi.metmuseum.org/public/collection/v1/search?q=sunflowers
 aic_image|image/jpeg|https://www.artic.edu/iiif/2/2d484387-2509-5e8e-2c43-22f9981972eb/full/843,/0/default.jpg
 aic_image_small|image/jpeg|https://www.artic.edu/iiif/2/2d484387-2509-5e8e-2c43-22f9981972eb/full/200,/0/default.jpg
+met_v11|application/json|https://collectionapi.metmuseum.org/public/collection/v1.1/search?q=Ukiyo-e&hasImages=true&isHighlight=true&offset=0&limit=5
+met_v11_plain|application/json|https://collectionapi.metmuseum.org/public/collection/v1.1/search?q=sunflowers&hasImages=true&offset=20&limit=5
+met_docs|text/html|https://metmuseum.github.io/
