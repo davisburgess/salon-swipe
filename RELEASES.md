@@ -16,13 +16,15 @@ How every release ships:
 - **Five new traditions** in the opening hang (39 total): American folk art, Danish Golden Age, Futurism, Vienna Secession, Der Blaue Reiter. Existing traditions now draw from the best-suited source.
 
 **Review found and fixed**
+- **The Met went dark on Oct 1.** The Met retired the search endpoint the app used and now answers it with "410 Gone"; every Met request has failed since then, with the other museums quietly covering. The app now uses the Met's replacement (v1.1, paginated).
+- **The nightly museum probe could never fail.** Its output went through a pipe that swallowed the exit code, which is how the Met outage went unflagged for five days. It now fails loudly, posts its results where they can be read without the logs, and identifies itself like a browser, so museum bot shields don't produce false alarms. Chicago's image server challenges all data-center robots; the probe recognises that challenge instead of reporting an outage.
 - **Cleveland never worked in a browser.** Its API sends no cross-origin permission, so every Cleveland request from the app failed silently and the other museums covered for it. Cleveland now loads from its open dataset (24,141 CC0 works with images), rebuilt monthly on GitHub along with the National Gallery's.
 - Browsing (outside the opening hang) sent words like "portrait" to Wikidata as if they were movement names and got nothing back. Browsing now takes a random slice of each collection when a word doesn't match.
 
-**Usability improvement:** none this release. It's all new art, and adding a UI change on top would muddy what to test.
+**Usability improvement:** Kept loads faster. Tiles now request small images from every museum that can resize them, not just Chicago.
 
-**Checks:** 36 unit and backend tests (new: Wikidata, V&A, SMK and Cleveland normalizers run against real responses captured from each API; static collection search), 37 of 37 browser feature checks (new: sources.mix, which requires works from the National Gallery, Wikidata, V&A and SMK in one session). The nightly live probe now covers all seven sources.
-**On your phone:** swipe about 40 works and open Kept. You should see museum names beyond Chicago and the Met. Open the wall text on a V&A or SMK work. In Settings, check that seven museums are listed and the V&A note shows.
+**Checks:** 37 unit and backend tests (new: Wikidata, V&A, SMK and Cleveland normalizers run against real responses captured from each API; static collection search; Met v1.1 search), 37 of 37 browser feature checks, twice in a row (new: sources.mix, which fetches each new tradition through the deck and requires the right museum for each). Three older checks that assumed only Chicago, the Met and Cleveland were made deterministic. The live probe covers all seven sources and runs on every release commit.
+**On your phone:** swipe about 40 works and open Kept. You should see museum names beyond Chicago and the Met. Open the wall text on a V&A or SMK work. In Settings, check that seven museums are listed and the V&A note shows. Look for a Met work again; you haven't seen one since Oct 1.
 
 ## 0.1.2-alpha (Oct 6, 2026)
 

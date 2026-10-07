@@ -18,7 +18,9 @@ async function probe(src, q, opts) {
     const good = items.filter((a) => a.uid && a.title && a.image && /^https:/.test(a.image) && a.url);
     if (good.length < 3) throw new Error(`only ${good.length} usable works (of ${items.length})`);
     const img = await fetch(good[0].image, { method: "GET" });
-    if (!img.ok || !/image\//.test(img.headers.get("content-type") || "")) throw new Error(`image ${good[0].image} -> ${img.status}`);
+    // Chicago's image server puts data-center robots behind a Cloudflare challenge; browsers pass. Only a non-challenge failure counts.
+    const challenged = img.status === 403 && img.headers.get("cf-mitigated") === "challenge";
+    if (!challenged && (!img.ok || !/image\//.test(img.headers.get("content-type") || ""))) throw new Error(`image ${good[0].image} -> ${img.status}`);
     const withDims = good.filter((a) => a.dimsCm).length, withMovement = good.filter((a) => a.movement).length;
     out.push(`PASS ${src.padEnd(4)} "${q || "(browse)"}": ${good.length} works, ${withDims} with size, ${withMovement} with movement, ${Date.now() - t0} ms`);
     return good;

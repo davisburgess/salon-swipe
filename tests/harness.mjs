@@ -45,7 +45,8 @@ export async function mockWorld(ctx, opts = {}) {
     r.fulfill({ status: 200, contentType: "image/jpeg", body: imgs[+id[1] || 0], headers: { "access-control-allow-origin": "*" } }); });
   await ctx.route("https://collectionapi.metmuseum.org/**", (r) => { calls.met++; if (down.has("met")) return r.fulfill({ status: 503, body: "" });
     const u = r.request().url();
-    if (u.includes("/search")) return r.fulfill({ json: { total: 40, objectIDs: Array.from({ length: 40 }, (_, i) => 5000 + i) } });
+    if (/\/v1\/search/.test(u)) return r.fulfill({ status: 410, json: { message: "/public/collection/v1/search was retired on 2026-10-01." } });   // as the real API now does
+    if (u.includes("/v1.1/search")) return r.fulfill({ json: { total: 40, objectIDs: Array.from({ length: 40 }, (_, i) => 5000 + i) } });
     const id = +u.split("/objects/")[1];
     r.fulfill({ json: { objectID: id, isPublicDomain: true, primaryImageSmall: `https://images.metmuseum.org/fake/p${id % 6}.jpg`, primaryImage: `https://images.metmuseum.org/fake/p${id % 6}.jpg`,
       title: `Met work ${id}`, artistDisplayName: `Met artist ${id % 9}`, artistDisplayBio: "Dutch, 1600–1660", objectDate: "1650", objectBeginDate: 1650, medium: "Oil on wood",
@@ -68,7 +69,7 @@ export async function mockWorld(ctx, opts = {}) {
     const records = Array.from({ length: 10 }, (_, i) => { const x = structuredClone(vamT[i % vamT.length]); n++; x.systemNumber = `O9${n}`; x._primaryTitle = `Study ${n}`; return x; });
     r.fulfill({ json: { records } }); });
   await ctx.route("https://api.smk.dk/**", (r) => { if (gate("smk", r)) return;
-    const items = Array.from({ length: 10 }, (_, i) => { const x = structuredClone(smkT[i % smkT.length]); n++; x.object_number = `KMS9${n}`; return x; });
+    const items = Array.from({ length: 10 }, (_, i) => { const x = structuredClone(smkT[i % smkT.length]); n++; x.object_number = `KMS9${n}`; (x.titles || []).forEach((t) => (t.title = `${t.title} ${n}`)); return x; });
     r.fulfill({ json: { items } }); });
   const anyImg = (r) => r.fulfill({ status: 200, contentType: "image/jpeg", headers: { "access-control-allow-origin": "*" }, body: imgs[r.request().url().length % 6] });
   for (const h of ["https://api.nga.gov/iiif/**", "https://framemark.vam.ac.uk/**", "https://iip-thumb.smk.dk/**", "https://iip.smk.dk/**",

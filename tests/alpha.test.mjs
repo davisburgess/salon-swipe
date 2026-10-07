@@ -311,3 +311,19 @@ test("static collections: term search and browse over shards", async () => {
     assert.ok(one.dimsCm && one.onView === null, "NGA works have sizes and no on-view claim");
   } finally { globalThis.fetch = realFetch; }
 });
+
+test("Met search uses the paginated v1.1 endpoint (v1 was retired Oct 1, 2026)", async () => {
+  const realFetch = globalThis.fetch, urls = [];
+  const met = live("met_cors");
+  globalThis.fetch = async (url) => {
+    const u = String(url); urls.push(u);
+    if (/\/v1\/search/.test(u)) return new Response("{}", { status: 410 });
+    if (u.includes("/v1.1/search")) return new Response(JSON.stringify(live("met_v11_plain")));
+    return new Response(JSON.stringify({ ...met, objectID: +u.split("/objects/")[1] }));
+  };
+  try {
+    const out = await search("met", "sunflowers", { limit: 4 });
+    assert.ok(out.length >= 1, "no works");
+    assert.ok(urls.some((u) => /\/v1\.1\/search\?.*offset=\d+&limit=\d+/.test(u)) && !urls.some((u) => /\/v1\/search/.test(u)));
+  } finally { globalThis.fetch = realFetch; }
+});

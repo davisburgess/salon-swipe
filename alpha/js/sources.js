@@ -18,6 +18,7 @@ export const MUSEUMS = {
 const AIC = "https://api.artic.edu/api/v1";
 const AIC_IIIF = "https://www.artic.edu/iiif/2";
 const MET = "https://collectionapi.metmuseum.org/public/collection/v1";
+const MET_SEARCH = "https://collectionapi.metmuseum.org/public/collection/v1.1/search";   // /v1/search retired Oct 1, 2026
 const CMA = "https://openaccess-api.clevelandart.org/api";
 
 const AIC_FIELDS = [
@@ -159,11 +160,17 @@ async function pool(items, n, fn) {
   return out;
 }
 
+// The Met retired /v1/search on Oct 1, 2026. /v1.1/search takes the same filters and pages with offset and limit.
 async function searchMet(q, { limit = 12, browse = false } = {}) {
-  const term = q || "painting";
-  let j = await getJSON(`${MET}/search?hasImages=true&isHighlight=true&q=${encodeURIComponent(term)}`);
-  if (!j.objectIDs || j.objectIDs.length < 4) j = await getJSON(`${MET}/search?hasImages=true&q=${encodeURIComponent(term)}`);
-  const ids = shuffle((j.objectIDs || []).slice(0, browse ? 400 : 80)).slice(0, Math.ceil(limit * 1.6));
+  const term = encodeURIComponent(q || "painting");
+  const find = (hl, offset, n) => getJSON(`${MET_SEARCH}?hasImages=true${hl ? "&isHighlight=true" : ""}&q=${term}&offset=${offset}&limit=${n}`);
+  let j = await find(true, 0, 80);
+  if (!j.objectIDs || j.objectIDs.length < 4) {
+    const offset = browse ? Math.floor(Math.random() * 300) : 0;
+    j = await find(false, offset, 100);
+    if (offset && !(j.objectIDs || []).length) j = await find(false, 0, 100);   // fewer results than the random offset
+  }
+  const ids = shuffle(j.objectIDs || []).slice(0, Math.ceil(limit * 1.6));
   const objs = await pool(ids, 6, (id) => getJSON(`${MET}/objects/${id}`, 10000));
   return objs.map(normalizeMet).filter(Boolean).slice(0, limit);
 }

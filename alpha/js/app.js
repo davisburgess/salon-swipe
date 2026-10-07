@@ -20,7 +20,7 @@ const state = load();
 const model = new TasteModel().fit(state.swipes);
 const deck = new Deck({ state, model, search, isAvailable });
 const undoStack = [];
-if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) window.__pp = { state, model, deck };   // test hook, local only
+if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) window.__pp = { state, model, deck, renderStage };   // test hook, local only
 let syncTimer = null, syncing = false;
 
 function touchMeta() { state.sync.metaT = Date.now(); }
@@ -545,7 +545,8 @@ function renderTaste() {
 
 /* ---------- Kept ---------- */
 let keptFilter = "all";
-function thumb(a) { return a.src === "aic" && a.image ? a.image.replace("/full/843,/", "/full/400,/") : a.image; }
+// Kept tiles load smaller images where the server can resize (IIIF and Commons).
+function thumb(a) { return (a.image || "").replace("/full/843,/", "/full/400,/").replace("/full/!900,900/", "/full/!400,400/").replace(/\?width=900$/, "?width=400") || null; }
 function renderKept() {
   const all = state.swipes.filter((s) => s.v > 0).slice().reverse();
   const list = keptFilter === "loved" ? all.filter((s) => s.v === 2) : keptFilter === "chicago" ? all.filter((s) => s.a.src === "aic" && s.a.onView) : all;

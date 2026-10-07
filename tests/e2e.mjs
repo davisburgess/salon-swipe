@@ -19,6 +19,10 @@ async function check(id, fn) {
 const pp = (p, fn, arg) => p.evaluate(fn, arg);
 const topTitle = (p) => p.textContent(".card.top .what");
 async function waitTop(p) { await p.waitForSelector(".card.top.loaded", { timeout: 10000 }); await p.waitForTimeout(150); }
+async function openInfo(p) {   // a level-up dialog can arrive after any decision; dismiss it the way a person would
+  await waitTop(p); if (await p.isVisible("#modal:not([hidden])")) { const ok = await p.$("#modalOk"); if (ok) await ok.click(); }
+  await p.keyboard.press("i"); await p.waitForSelector("#sheet.open");
+}
 async function press(p, key, n = 1) { for (let i = 0; i < n; i++) { await waitTop(p); if (await p.isVisible("#modal:not([hidden])")) { const ok = await p.$("#modalOk"); if (ok) await ok.click(); } await p.keyboard.press(key); await p.waitForTimeout(300); } }
 async function drag(p, dx, dy) {
   await waitTop(p);
@@ -115,8 +119,8 @@ const store = (p) => pp(p, () => JSON.parse(localStorage.getItem("pp-alpha-v1"))
     const s = await store(p); expect(s.swipes.some((x) => t.startsWith(x.a.title) && x.v === 0), "third Later didn't mark undecided");
   });
   await check("wall.sheet", async () => {
-    // The Chicago mock carries known wall text and sizes; pass other museums' works until one is on top.
-    for (let i = 0; i < 12 && (await pp(p, () => __pp.deck.queue[0] && __pp.deck.queue[0].src)) !== "aic"; i++) await press(p, "ArrowLeft");
+    // The Chicago mock carries known wall text and sizes, so put a Chicago work on top.
+    await pp(p, async () => { const [a] = await __pp.deck.search("aic", "", { limit: 1, browse: true }); const q = __pp.deck.queue; if (!q[0] || q[0].src !== "aic") { q[0] = a; __pp.renderStage(); } });
     await waitTop(p); const lb = await p.locator(".card.top .label").boundingBox(); await p.mouse.click(lb.x + 20, lb.y + 10);
     await p.waitForSelector("#sheet.open"); await p.waitForTimeout(400);
     const txt = await p.textContent("#sheetBody");
@@ -128,24 +132,24 @@ const store = (p) => pp(p, () => JSON.parse(localStorage.getItem("pp-alpha-v1"))
   await check("wall.decide", async () => { let step = "start"; try {
     await p.click("#sheetDone");
     let n = (await store(p)).swipes.length;
-    await waitTop(p); await p.keyboard.press("i"); await p.waitForSelector("#sheet.open");
+    await openInfo(p);
     expect(await p.isVisible("#sheetActions"), "no decision bar on the wall text");
     const t1 = await topTitle(p);
     step = "keep button"; await p.click('#sheetActions [data-act="keep"]'); await p.waitForTimeout(450);
     let s = await store(p); expect(s.swipes.length === n + 1 && s.swipes.at(-1).v === 1, "Keep from the wall text didn't record"); expect(await p.isHidden("#sheet"), "wall text stayed open");
     expect(await topTitle(p) !== t1, "next work didn't appear"); n++;
-    await waitTop(p); await p.keyboard.press("i"); await p.waitForSelector("#sheet.open"); await p.waitForTimeout(300);
+    await openInfo(p); await p.waitForTimeout(300);
     step = "reopen for swipe"; const box = await p.locator("#sheet").boundingBox(); const y = box.y + 180;
     await p.mouse.move(box.x + box.width / 2, y); await p.mouse.down(); await p.mouse.move(box.x + box.width / 2 - 120, y + 4, { steps: 6 }); await p.mouse.move(box.x + box.width / 2 - 260, y + 6, { steps: 6 }); await p.mouse.up();
     await p.waitForTimeout(450);
     s = await store(p); expect(s.swipes.length === n + 1 && s.swipes.at(-1).v === -1, "swiping the panel left didn't pass"); n++;
-    await waitTop(p); await p.keyboard.press("i"); await p.waitForSelector("#sheet.open"); await p.waitForTimeout(300);
+    await openInfo(p); await p.waitForTimeout(300);
     await p.mouse.move(box.x + box.width / 2, y); await p.mouse.down(); step = "small drag"; await p.mouse.move(box.x + box.width / 2 + 30, y + 2, { steps: 4 }); await p.mouse.up(); await p.waitForTimeout(300);
     expect((await store(p)).swipes.length === n && await p.isVisible("#sheet.open"), "a small drag shouldn't decide");
     await p.screenshot({ path: `${OUT}/walltext-actions.png` });
     step = "later button"; await p.click('#sheetActions [data-act="later"]'); await p.waitForTimeout(400); expect(await p.isHidden("#sheet"), "Later from the wall text didn't close it");
-    step = "reopen for zoom"; await waitTop(p); await p.keyboard.press("i"); await p.waitForSelector("#sheet.open"); await p.click("#zoomBtn");
-  } catch (e) { throw new Error(`${step}: ${e.message} | modal: ${await p.isVisible("#modal:not([hidden])")} why: ${await p.isVisible("#why:not([hidden])")}`); } });
+    step = "reopen for zoom"; await openInfo(p); await p.click("#zoomBtn");
+  } catch (e) { await p.screenshot({ path: `${OUT}/fail-wall-decide.png` }).catch(() => {}); throw new Error(`${step}: ${e.message} | modal: ${await p.isVisible("#modal:not([hidden])")} why: ${await p.isVisible("#why:not([hidden])")}`); } });
   await check("wall.zoom", async () => {
     if (await p.isHidden("#zoom")) await p.click("#zoomBtn");
     await p.waitForSelector("#zoom:not([hidden])"); await p.click("#zoomImg");
@@ -245,9 +249,12 @@ const store = (p) => pp(p, () => JSON.parse(localStorage.getItem("pp-alpha-v1"))
   });
   await check("data.reset", async () => { expect(results.get("data.backup")?.ok, "covered by data.backup (erase then restore)"); });
   await check("sources.mix", async () => {
-    const srcs = new Set((await store(p)).swipes.map((x) => x.a.src));
-    for (const k of ["nga", "wd", "vam", "smk"]) expect(srcs.has(k), `no works from ${k} in a full session (saw ${[...srcs].join(", ")})`);
-    return [...srcs].join(", ");
+    // The new traditions each come from one new source; fetching them through the deck proves every source works in the browser.
+    const got = await pp(p, async () => { const { OPENING } = await import("./js/curation.js");
+      const out = {}; for (const id of ["folk", "danish-golden-age", "futurism", "mughal"]) { const a = await __pp.deck.fetchSeed(OPENING.find((s) => s.id === id)); out[id] = a && a.src; } return out; });
+    expect(got.folk === "nga" && got["danish-golden-age"] === "smk" && got.futurism === "wd" && got.mughal === "vam", JSON.stringify(got));
+    const seen = new Set((await store(p)).swipes.map((x) => x.a.src));
+    return `seeds ${Object.values(got).join(", ")}; session saw ${[...seen].join(", ")}`;
   });
   await check("look.norepeat", async () => { const u = (await store(p)).swipes.map((s) => s.uid); expect(u.length === new Set(u).size, `${u.length - new Set(u).size} repeats`); return `${u.length} decisions, 0 repeats`; });
   await check("app.install", async () => {
@@ -269,7 +276,8 @@ const store = (p) => pp(p, () => JSON.parse(localStorage.getItem("pp-alpha-v1"))
 await check("look.broken", async () => {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
   await mockWorld(ctx, { brokenImages: new Set(["p3", "p4", "p5"]) });
-  const p = await ctx.newPage(); await p.goto(APP); await pp(p, () => { localStorage.clear(); localStorage.setItem("pp-alpha-v1", JSON.stringify({ onboarded: true, seedIdx: 34 })); }); await p.reload();
+  const p = await ctx.newPage(); await p.goto(APP); await pp(p, () => { localStorage.clear(); localStorage.setItem("pp-alpha-v1", JSON.stringify({ onboarded: true, seedIdx: 99,   // past the opening hang; Chicago only, whose mock breaks some images
+    settings: { sources: { met: false, nga: false, cma: false, wd: false, vam: false, smk: false } } })); }); await p.reload();
   for (let i = 0; i < 14; i++) { await waitTop(p); const src = await p.getAttribute(".card.top .work", "src"); expect(!/\/iiif\/2\/p3/.test(src), "a broken image was shown"); await p.keyboard.press("ArrowRight"); await p.waitForTimeout(260); }
   const s = await store(p); expect(Object.keys(s.seen).some((u) => !s.swipes.some((x) => x.uid === u)), "broken works weren't retired");
   await ctx.close();
