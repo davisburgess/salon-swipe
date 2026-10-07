@@ -40,4 +40,6 @@ if (aic[0]) {
   catch (e) { failed++; out.push(`FAIL aic  wall text: ${e.message}`); }
 }
 console.log(out.join("\n"));
+// On GitHub, also post the results as one annotation so they're readable from the API without downloading logs.
+if (process.env.GITHUB_ACTIONS) console.log(`::${failed ? "error" : "notice"} title=Live museum probe::${out.join("%0A")}`);
 process.exit(failed ? 1 : 0);

@@ -52,4 +52,5 @@ jobs:
         with:
           node-version: 22
       - name: Probe the real museum APIs
+        shell: bash   # adds pipefail, so a failed probe fails the job despite tee
         run: node tests/live-smoke.mjs | tee -a "$GITHUB_STEP_SUMMARY"
