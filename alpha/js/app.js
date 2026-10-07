@@ -6,7 +6,8 @@ import { search, details, isAvailable, health as srcHealth, MUSEUMS } from "./so
 import { TasteModel, features } from "./model.js";
 import { Deck, MAX_DEFERS } from "./deck.js";
 import { load, save, saveFailed, record, STORE_KEY, mergeSwipes, backupPayload, parseBackup, encodeCode, fromSalonSwipe, compact } from "./store.js";
-import { stats, levelFor, BADGES, LEVELS, profileFacts, templateNote } from "./rewards.js";
+import { stats, levelFor, LEVELS, profileFacts, templateNote } from "./rewards.js";
+import { BADGES, FAMILIES, TIERS, badgeStats, award, unsealedAt, pinState, closest, eyeTitle, pinSVG, ensureDefs, tierName, byId as badgeById } from "./badges.js";
 import * as api from "./sync.js";
 import { analyze } from "./vision.js";
 import { APP } from "./config.js";
@@ -239,6 +240,7 @@ function decide(v, vel) {
   const predicted = model.trained ? model.p(features(a)) : null;
   model.record(predicted, v);
   const rec = record(state, a, v);
+  if (predicted != null && v !== 0) rec.p = Math.round(predicted * 100) / 100;   // for "Called it"
   if (a._look) rec.look = a._look;
   markSeedSeen(a);
   model.learn(rec.f, v);
@@ -290,6 +292,7 @@ function undo() {
     state.sync.dirty = state.sync.dirty.filter((u) => u !== h.rec.uid);
     (state.sync.removed = state.sync.removed || []).push(h.rec.uid);
     model.fit(state.swipes); deck.rebuildKeys();
+    state.counters = state.counters || {}; state.counters.undo = (state.counters.undo || 0) + 1;
     deck.queue.unshift(h.card); persist();
   }
   say(`Undone. ${h.card.title} is back.`);
@@ -350,18 +353,48 @@ function hideWhy() { $("#why").hidden = true; whyRec = null; clearTimeout(whyT);
 async function afterDecision(rec) {
   const st = stats(state, model), lv = levelFor(st);
   renderLevelChip(lv);
-  const fresh = BADGES.filter((b) => !state.badges[b.id] && b.test(st));
-  fresh.forEach((b) => (state.badges[b.id] = Date.now()));
-  if (fresh.length) { toast(`Badge earned: ${fresh.map((b) => b.name).join(", ")}`); persist({ meta: true }); }
-  if (lv.level > (state.level || 0)) {
-    state.level = lv.level; persist({ meta: true });
+  const leveled = lv.level > (state.level || 0);
+  if (leveled) state.level = lv.level;
+  const fresh = award(state, badgeStats(state, model), currentLevel());
+  if (fresh.length || leveled) persist({ meta: true });
+  if (fresh.length && !leveled) toast(pinNews(fresh), 4200);
+  if (leveled) {
+    const opened = unsealedAt(state, lv.level);
     const note = await makeNote(LEVELS[lv.level].name);
     openModal(`<p class="kicker">New level</p><h2 class="display">${esc(LEVELS[lv.level].name)}</h2>
+      ${opened.length ? `<div class="unsealed"><p class="kicker">Seals broken</p><div class="pinrow">${opened.map(({ b, tier }) => `<figure>${pinSVG(b, tier)}<figcaption>${esc(b.name)}<br><small>${tierName(b, tier)}</small></figcaption></figure>`).join("")}</div></div>` : ""}
       <article class="note"><h3>${esc(note.title)}</h3><p>${esc(note.text)}</p></article>
       <button class="btn primary" id="modalOk">Keep looking</button>`);
     $("#modalOk").onclick = closeModal;
   }
   if (state.swipes.length - (state.backupCount || 0) >= 75 && !state.sync.key) $("#nudge").hidden = false;
+}
+// Your level for seals never goes down, even if accuracy dips.
+function currentLevel() { return Math.max(state.level || 0, levelFor(stats(state, model)).level); }
+function pinNews(fresh) {
+  const open = fresh.filter((f) => !f.sealed), sealed = fresh.filter((f) => f.sealed);
+  const label = ({ b, tier }) => `${b.fam === "secret" ? "Secret pin: " : ""}${b.name}${b.tiers ? ` (${tierName(b, tier).toLowerCase()})` : ""}`;
+  const parts = [];
+  if (open.length) parts.push(open.length === 1 ? `Pin earned: ${label(open[0])}` : `${open.length} pins earned: ${open.slice(0, 3).map(label).join(", ")}${open.length > 3 ? "…" : ""}`);
+  if (sealed.length) { const f = sealed[0]; parts.push(`${tierName(f.b, f.tier)} ${f.b.name} earned. It unseals at ${LEVELS[TIERS[f.tier].level].name}.`); }
+  return parts.join(" · ");
+}
+
+// First run of the cabinet: your history earns its pins in one moment instead of a stream of pop-ups.
+function openCabinet() {
+  if (state.badges["pin:_init"]) return;
+  const fresh = award(state, badgeStats(state, model), currentLevel());
+  state.badges["pin:_init"] = Date.now(); persist({ meta: true });
+  if (!state.onboarded || !fresh.length) return;
+  const open = fresh.filter((f) => !f.sealed), sealed = fresh.filter((f) => f.sealed);
+  const best = new Map(); open.forEach((f) => { if (!best.has(f.b.id) || best.get(f.b.id).tier < f.tier) best.set(f.b.id, f); });
+  const shown = [...best.values()];
+  openModal(`<p class="kicker">New in ${esc(APP.name)}</p><h2 class="display small">Your cabinet is open</h2>
+    <p>Your ${state.swipes.length} decisions so far earned <b>${shown.length} ${shown.length === 1 ? "pin" : "pins"}</b>${sealed.length ? `, plus ${sealed.length} higher ${sealed.length === 1 ? "tier" : "tiers"} sealed until you level up` : ""}.</p>
+    <div class="pinrow ceremony">${shown.map(({ b, tier }, i) => `<figure style="--i:${i}">${pinSVG(b, tier)}<figcaption>${esc(b.name)}</figcaption></figure>`).join("")}</div>
+    <button class="btn primary" id="modalOk">See them in Taste</button><button class="btn" id="modalLater">Later</button>`);
+  $("#modalOk").onclick = () => { closeModal(); show("taste"); setTimeout(() => jumpTo("t-badges"), 60); };
+  $("#modalLater").onclick = closeModal;
 }
 
 async function makeNote(levelName) {
@@ -501,8 +534,62 @@ function closeModal() { $("#modal").hidden = true; }
 /* ---------- Taste ---------- */
 const bar = (w, max) => { const pct = clamp(Math.abs(w) / max, 0, 1) * 50; return `<span class="bar"><i class="${w >= 0 ? "pos" : "neg"}" style="${w >= 0 ? `left:50%;width:${pct}%` : `left:${50 - pct}%;width:${pct}%`}"></i></span>`; };
 function renderTaste() {
-  const st = stats(state, model), lv = levelFor(st);
+  ensureDefs();
+  const st = stats(state, model), lv = levelFor(st), level = currentLevel();
+  const bst = badgeStats(state, model);
   const latest = state.notes[state.notes.length - 1];
+  const scroller = $("#view-taste"), keepScroll = scroller.scrollTop;
+
+  // Portrait: your eye as a title, its traits, level, accuracy, notes.
+  const eye = eyeTitle(bst, model);
+  if (eye) { state.titles = state.titles || []; const last = state.titles[state.titles.length - 1];
+    if (!last || last.title !== eye.title) { state.titles.push({ title: eye.title, t: Date.now() }); state.titles = state.titles.slice(-12); persist({ meta: true }); } }
+  const earlier = (state.titles || []).slice(0, -1).reverse().find((x) => !eye || x.title !== eye.title);
+  const traitPin = (tok) => BADGES.find((b) => b.tok === tok);
+  const called = state.swipes.filter((x) => x.v !== 0 && typeof x.p === "number").slice(-10).map((x) => (x.p >= 0.5) === (x.v > 0));
+  const portrait = `<section id="t-portrait" class="tsec">
+    <p class="kicker">${eye ? "Your eye right now" : "Your eye"}</p>
+    <h1 class="display">${esc(eye ? eye.title : "Still looking")}</h1>
+    ${eye && eye.traits.length ? `<div class="traits">${eye.traits.map((tok) => { const b = traitPin(tok); return b ? `<button type="button" class="trait" data-pin="${b.id}">${pinSVG(b, 1, state.badges[`pin:${b.id}:1`] ? "earned" : "locked")}<span>${esc(b.name)}</span></button>` : ""; }).join("")}</div>` : ""}
+    ${!eye ? `<p class="muted">Your eye gets a name after 25 decisions.</p>` : earlier ? `<p class="muted small">Before: ${esc(earlier.title)}</p>` : ""}
+    <div class="level">
+      <p class="kicker">Level: <b>${esc(LEVELS[level].name)}</b></p>
+      ${lv.next ? `<p class="small muted">To become a ${esc(lv.next.name)}:</p><ul class="needs">${lv.next.needs.map((n) => `<li class="${n.done ? "done" : ""}"><span>${n.done ? `Done: ${n.pct ? `${n.need}%+` : n.need} ${esc(n.label)}` : `${n.pct ? `${n.have}% of ${n.need}%` : `${n.have} of ${n.need}`} ${esc(n.label)}`}</span><span class="meter"><i style="width:${Math.round(clamp(n.have / n.need, 0, 1) * 100)}%"></i></span></li>`).join("")}</ul>` : `<p class="small muted">The top of the ladder. Keep looking; the notes keep coming.</p>`}
+    </div>
+    <div class="tiles"><div><b>${st.decided}</b><span>judged</span></div><div><b>${Math.round(st.keepRate * 100)}%</b><span>kept</span></div><div><b>${st.accuracy == null ? "–" : Math.round(st.accuracy * 100) + "%"}</b><span>predicted right</span></div></div>
+    ${called.length >= 5 ? `<p class="kicker">Called it: ${called.filter(Boolean).length} of your last ${called.length}</p><div class="callit" aria-hidden="true">${called.map((ok) => `<i class="${ok ? "hit" : ""}"></i>`).join("")}</div>` : ""}
+    <div class="notes">
+      <div class="notes-head"><h2>Curator's notes</h2>
+        <label class="tone">Tone <select id="toneSel">${Object.entries(TONES).map(([k, t]) => `<option value="${k}" ${state.settings.tone === k ? "selected" : ""}>${t.label}</option>`).join("")}</select></label></div>
+      ${latest ? `<article class="note"><h3>${esc(latest.title)}</h3><p>${esc(latest.text)}</p><p class="note-meta">${relTime(latest.t)}${latest.ai ? "" : ", written offline"}</p></article>` : `<p class="muted">Your first note arrives when you reach Docent.</p>`}
+      <button class="btn" id="noteNow" ${st.decided < 15 ? "disabled" : ""}>Write a new note</button>
+      ${!api.apiBase() ? `<p class="muted small">Notes are written on this device in the dry voice. Connect the backend for fuller notes in any tone.</p>` : ""}
+      ${state.notes.length > 1 ? `<details class="past"><summary>Earlier notes (${state.notes.length - 1})</summary>${state.notes.slice(0, -1).reverse().map((n) => `<article class="note small"><h3>${esc(n.title)}</h3><p>${esc(n.text)}</p><p class="note-meta">${relTime(n.t)}</p></article>`).join("")}</details>` : ""}
+    </div></section>`;
+
+  // Badges: closest next, then the cabinet by family.
+  const states = BADGES.map((b) => ({ b, ps: pinState(state, b, bst, level) }));
+  const earnedN = states.filter((x) => x.ps.tier).length, waiting = states.filter((x) => x.ps.sealed).length;
+  const near = closest(state, bst, level);
+  const pinBtn = ({ b, ps }) => {
+    const mode = ps.secretHidden ? "secret" : !ps.tier ? "locked" : ps.sealed && !ps.shown ? "sealed" : "earned";
+    const tier = ps.secretHidden ? 1 : ps.sealed && !ps.shown ? ps.sealed : (ps.shown || 1);
+    const label = ps.secretHidden ? "Secret pin, not yet earned" : `${b.name}${ps.tier ? (b.tiers ? `, ${tierName(b, ps.shown || ps.sealed).toLowerCase()}` : ", earned") : ", not yet earned"}${ps.sealed ? `, ${tierName(b, ps.sealed).toLowerCase()} sealed` : ""}`;
+    return `<button type="button" class="pin ${mode}" data-pin="${b.id}" aria-label="${esc(label)}">${pinSVG(b, tier, mode)}<span>${ps.secretHidden ? "?" : esc(b.name)}</span>${ps.sealed && ps.shown ? `<i class="sealdot" title="A higher tier is sealed"></i>` : ""}</button>`;
+  };
+  const fams = Object.keys(FAMILIES).map((f) => {
+    const list = states.filter((x) => x.b.fam === f);
+    return `<div class="family"><h3>${esc(FAMILIES[f].name)} <small>${list.filter((x) => x.ps.tier).length} of ${list.length}</small></h3><p class="small muted">${esc(FAMILIES[f].blurb)}</p>
+      <div class="cabinet">${list.map(pinBtn).join("")}</div></div>`;
+  }).join("");
+  const badges = `<section id="t-badges" class="tsec">
+    <h2 class="sech">Badges</h2>
+    <p class="small muted">${earnedN} of ${BADGES.length} pins${waiting ? ` · ${waiting} higher ${waiting === 1 ? "tier" : "tiers"} sealed until you level up` : ""}. Tap any pin.</p>
+    ${near.length ? `<p class="kicker">Closest next</p><div class="nextup">${near.map(({ b, ps }) => `<button type="button" class="next" data-pin="${b.id}">${pinSVG(b, ps.next.tier, "locked")}<span><b>${esc(b.name)}${b.tiers ? ` · ${tierName(b, ps.next.tier).toLowerCase()}` : ""}</b>
+      <small>${esc(ps.next.hint || `${ps.next.have} of ${ps.next.need} ${b.unit || ""}`.trim())}</small><span class="meter"><i style="width:${Math.round(clamp(ps.next.have / ps.next.need, 0, 1) * 100)}%"></i></span></span></button>`).join("")}</div>` : ""}
+    ${fams}</section>`;
+
+  // Leanings: what the model has learned, reasons, undecided.
   const dims = [["style", "Movements"], ["artist", "Artists"], ["place", "Places"], ["med", "Media"], ["era", "Eras"], ["light", "Light"], ["sat", "Color intensity"], ["warm", "Temperature"], ["busy", "Detail"], ["subject", "Subjects"]];
   const leanHTML = dims.map(([d, label]) => {
     const rows = model.leaning(d, 6, 2); if (!rows.length) return "";
@@ -511,28 +598,19 @@ function renderTaste() {
   }).join("");
   const whyTotal = Object.values(st.why).reduce((a, b) => a + b, 0);
   const whyHTML = whyTotal ? `<section class="dim"><h3>Why you love what you love</h3>${Object.entries(st.why).sort((a, b) => b[1] - a[1]).map(([k, n]) => `<div class="row"><span class="n">${esc(k)}</span><span class="bar"><i class="pos" style="left:0;width:${Math.round((n / whyTotal) * 100)}%"></i></span><span class="c">${Math.round((n / whyTotal) * 100)}%</span></div>`).join("")}</section>` : "";
-  const und = state.swipes.filter((s) => s.v === 0).slice(-6).reverse();
-  $("#view-taste").innerHTML = `<div class="page">
-    <header class="level">
-      <p class="kicker">Your level</p>
-      <h1 class="display">${esc(lv.name)}</h1>
-      ${lv.next ? `<p class="lede">To become a ${esc(lv.next.name)}:</p><ul class="needs">${lv.next.needs.map((n) => `<li class="${n.done ? "done" : ""}"><span>${n.done ? `Done: ${n.pct ? `${n.need}%+` : n.need} ${esc(n.label)}` : `${n.pct ? `${n.have}% of ${n.need}%` : `${n.have} of ${n.need}`} ${esc(n.label)}`}</span><span class="meter"><i style="width:${Math.round(clamp(n.have / n.need, 0, 1) * 100)}%"></i></span></li>`).join("")}</ul>` : `<p class="lede">The top of the ladder. Keep looking; the notes keep coming.</p>`}
-      <p class="stats"><span><b>${st.decided}</b> judged</span><span><b>${Math.round(st.keepRate * 100)}%</b> kept</span><span><b>${st.accuracy == null ? "–" : Math.round(st.accuracy * 100) + "%"}</b> predicted right</span><span><b>${st.undecided}</b> undecided</span></p>
-    </header>
-    <section class="notes">
-      <div class="notes-head"><h2>Curator's notes</h2>
-        <label class="tone">Tone <select id="toneSel">${Object.entries(TONES).map(([k, t]) => `<option value="${k}" ${state.settings.tone === k ? "selected" : ""}>${t.label}</option>`).join("")}</select></label></div>
-      ${latest ? `<article class="note"><h3>${esc(latest.title)}</h3><p>${esc(latest.text)}</p><p class="note-meta">${relTime(latest.t)}${latest.ai ? "" : ", written offline"}</p></article>` : `<p class="muted">Your first note arrives when you reach Docent.</p>`}
-      <button class="btn" id="noteNow" ${st.decided < 15 ? "disabled" : ""}>Write a new note</button>
-      ${!api.apiBase() ? `<p class="muted small">Notes are written on this device in the dry voice. Connect the backend for fuller notes in any tone.</p>` : ""}
-      ${state.notes.length > 1 ? `<details class="past"><summary>Earlier notes (${state.notes.length - 1})</summary>${state.notes.slice(0, -1).reverse().map((n) => `<article class="note small"><h3>${esc(n.title)}</h3><p>${esc(n.text)}</p><p class="note-meta">${relTime(n.t)}</p></article>`).join("")}</details>` : ""}
-    </section>
-    <section class="badges"><h2>Badges</h2><ul>${BADGES.map((b) => `<li class="${state.badges[b.id] ? "earned" : ""}"><b>${esc(b.name)}</b><span>${esc(b.desc)}</span></li>`).join("")}</ul></section>
-    <h2>What you respond to</h2>
+  const und = state.swipes.filter((x) => x.v === 0).slice(-6).reverse();
+  const leanings = `<section id="t-leanings" class="tsec"><h2 class="sech">What you respond to</h2>
     ${leanHTML || `<p class="muted">Patterns appear after a couple of dozen decisions.</p>`}
     ${whyHTML}
-    ${und.length ? `<section class="dim"><h3>Left you undecided</h3><ul class="plain">${und.map((s) => `<li><cite>${esc(s.a.title)}</cite>, ${esc(s.a.artist || "unknown maker")}</li>`).join("")}</ul></section>` : ""}
-  </div>`;
+    ${und.length ? `<section class="dim"><h3>Left you undecided</h3><ul class="plain">${und.map((x) => `<li><cite>${esc(x.a.title)}</cite>, ${esc(x.a.artist || "unknown maker")}</li>`).join("")}</ul></section>` : ""}</section>`;
+
+  scroller.innerHTML = `<nav class="jump" aria-label="Taste sections">${[["t-portrait", "Portrait"], ["t-badges", "Badges"], ["t-leanings", "Leanings"]].map(([id, l], i) => `<a href="#${id}" data-jump="${id}" ${i === 0 ? 'aria-current="true"' : ""}>${l}</a>`).join("")}</nav>
+    <div class="page">${portrait}${badges}${leanings}</div>`;
+  scroller.scrollTop = keepScroll;
+
+  $$("[data-jump]", scroller).forEach((a) => (a.onclick = (e) => { e.preventDefault(); jumpTo(a.dataset.jump); }));
+  $$("[data-pin]", scroller).forEach((el) => (el.onclick = () => openPin(el.dataset.pin)));
+  scroller.onscroll = spyTaste; spyTaste();
   $("#toneSel").onchange = (e) => { state.settings.tone = e.target.value; persist({ meta: true }); };
   $("#noteNow").onclick = async (e) => {
     const last = state.notes[state.notes.length - 1];
@@ -541,6 +619,40 @@ function renderTaste() {
     e.currentTarget.disabled = true; e.currentTarget.textContent = "Writing…";
     await makeNote(null); renderTaste();
   };
+}
+function jumpTo(id) {
+  const sc = $("#view-taste"), el = document.getElementById(id); if (!el) return;
+  const nav = $(".jump", sc), off = nav ? nav.offsetHeight + 4 : 0;
+  sc.scrollTo({ top: el.offsetTop - off, behavior: reduceMotion ? "auto" : "smooth" });
+}
+// Highlight the section you're reading.
+function spyTaste() {
+  const sc = $("#view-taste"), nav = $(".jump", sc); if (!nav) return;
+  const y = sc.scrollTop + nav.offsetHeight + 40;
+  let cur = "t-portrait";
+  for (const id of ["t-portrait", "t-badges", "t-leanings"]) { const el = document.getElementById(id); if (el && el.offsetTop <= y) cur = id; }
+  if (sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 4) cur = "t-leanings";
+  $$("[data-jump]", nav).forEach((a) => (a.dataset.jump === cur ? a.setAttribute("aria-current", "true") : a.removeAttribute("aria-current")));
+}
+function openPin(id) {
+  const b = badgeById[id]; if (!b) return;
+  const bst = badgeStats(state, model), level = currentLevel(), ps = pinState(state, b, bst, level);
+  if (ps.secretHidden) {
+    openModal(`<div class="pinhead">${pinSVG(b, 1, "secret")}</div><h2>A secret pin</h2><p>Some pins only reveal themselves once you've earned them. Keep looking.</p><button class="btn primary" id="modalOk">Close</button>`);
+    $("#modalOk").onclick = closeModal; return;
+  }
+  const mode = !ps.tier ? "locked" : ps.sealed && !ps.shown ? "sealed" : "earned";
+  const tier = ps.sealed && !ps.shown ? ps.sealed : (ps.shown || (ps.next ? ps.next.tier : 1));
+  const ladder = b.tiers ? `<ol class="ladder">${b.tiers.map((need, i) => { const t = i + 1, got = ps.tier >= t, sealedT = got && !(TIERS[t].level <= level);
+    return `<li class="${got ? (sealedT ? "sealed" : "got") : ""}"><b>${TIERS[t].name}</b><span>${need} ${esc(b.unit || "")}</span><span>${got ? (sealedT ? `Sealed until ${LEVELS[TIERS[t].level].name}` : "Earned") : TIERS[t].level > 0 ? `Opens at ${LEVELS[TIERS[t].level].name}` : ""}</span></li>`; }).join("")}</ol>` : "";
+  const prog = ps.next && ps.next.need ? `<p class="small">${esc(ps.next.hint || `${ps.next.have} of ${ps.next.need} ${b.unit || ""}`.trim())}</p><span class="meter"><i style="width:${Math.round(clamp(ps.next.have / ps.next.need, 0, 1) * 100)}%"></i></span>` : "";
+  openModal(`<div class="pinhead">${pinSVG(b, tier, mode)}</div>
+    <p class="kicker">${esc(FAMILIES[b.fam].name)}${ps.tier ? ` · earned ${relTime(state.badges[`pin:${b.id}:1`])}` : ""}</p>
+    <h2>${esc(b.name)}</h2>
+    <p>${esc(b.how)}</p>${ladder}${prog}
+    <p class="walllabel">${esc(b.fact)}</p>
+    <button class="btn primary" id="modalOk">Close</button>`);
+  $("#modalOk").onclick = closeModal;
 }
 
 /* ---------- Kept ---------- */
@@ -735,6 +847,7 @@ function handlePairLink() {
   renderLevelChip();
   show("look");
   if (!handlePairLink()) onboarding();
+  if (state.onboarded && $("#modal").hidden) openCabinet(); else if (!state.badges["pin:_init"]) { award(state, badgeStats(state, model), currentLevel()); state.badges["pin:_init"] = Date.now(); persist({ meta: true }); }
   await api.configure();
   if (state.sync.key) runSync();
   if ("serviceWorker" in navigator && (location.protocol === "https:" || /^(localhost|127\.0\.0\.1)$/.test(location.hostname))) navigator.serviceWorker.register("./sw.js").catch(() => {});

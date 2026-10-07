@@ -13,7 +13,9 @@ export const blank = () => ({
   later: [],             // { a, n: times deferred, due: decision count when it returns }
   seedIdx: 0,
   notes: [],             // Curator's Notes { id, level, title, text, tone, ai, t }
-  badges: {},            // id -> time earned
+  badges: {},            // "pin:<id>:<tier>" -> time earned (badges.js); older ids are kept but unused
+  counters: {},          // { undo } for Pentimento
+  titles: [],            // history of "your eye" titles { title, t }
   level: 0,
   settings: { explore: 0.35, tone: "cheeky", sources: { aic: true, met: true, nga: true, cma: true, wd: true, vam: true, smk: true } },
   lastBackup: 0, backupCount: 0,
@@ -40,7 +42,7 @@ export const saveFailed = () => failed;
 
 // What we keep about a work after you've judged it: enough to show it in your collection and retrain the model.
 export function compact(a) {
-  const keep = ["uid", "src", "museum", "id", "title", "artist", "date", "year", "place", "kind", "medium", "mediumFamily",
+  const keep = ["uid", "src", "museum", "id", "title", "artist", "artistBio", "date", "year", "place", "kind", "medium", "mediumFamily",
     "movement", "subjects", "color", "image", "imageLarge", "ar", "dims", "dimsCm", "credit", "url", "onView", "gallery", "vis"];
   const o = {};
   for (const k of keep) if (a[k] != null && !(Array.isArray(a[k]) && !a[k].length)) o[k] = a[k];

@@ -10,6 +10,7 @@ export const LEVELS = [
   { name: "Collector", min: 75, acc: 0.6, range: 10 },
   { name: "Curator", min: 200, acc: 0.65, range: 16 },
   { name: "Connoisseur", min: 400, acc: 0.7, range: 22 },
+  { name: "Director", min: 1500, acc: 0.72, range: 30 },   // added in 0.3 for heavy use; earlier thresholds unchanged
 ];
 
 export function stats(state, model) {
@@ -45,17 +46,7 @@ export function levelFor(st) {
   return { level: lv, name: LEVELS[lv].name, next: next ? { name: next.name, needs } : null };
 }
 
-export const BADGES = [
-  { id: "first-love", name: "First love", desc: "Loved a work", test: (s) => s.loves >= 1 },
-  { id: "wide-angle", name: "Wide angle", desc: "Judged works from 10 movements", test: (s) => s.range >= 10 },
-  { id: "grand-tour", name: "Grand tour", desc: "Judged works from 25 movements", test: (s) => s.range >= 25 },
-  { id: "time-traveler", name: "Time traveler", desc: "Works from 6 different centuries", test: (s) => s.centuries >= 6 },
-  { id: "three-cities", name: "Three cities", desc: "Works from all three museums", test: (s) => s.museums >= 3 },
-  { id: "second-thoughts", name: "Second thoughts", desc: "Decided on a work after putting it off", test: (s) => s.secondLookDecided >= 1 },
-  { id: "says-why", name: "Says why", desc: "Gave reasons for 10 Loves", test: (s) => s.whyTagged >= 10 },
-  { id: "field-trip", name: "Field trip", desc: "Kept 5 works on view in Chicago right now", test: (s) => s.chicagoOnView >= 5 },
-  { id: "tough-crowd", name: "Tough crowd", desc: "Passed on 100 works", test: (s) => s.passes >= 100 },
-];
+// Badges moved to badges.js in 0.3 (the pin cabinet).
 
 // The facts a Curator's Note may draw on. The writer (Claude or the offline writer below) uses nothing else.
 export function profileFacts(state, model) {

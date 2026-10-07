@@ -321,7 +321,7 @@ export function normalizeSMK(r) {
   return {
     uid: `smk:${r.object_number}`, src: "smk", museum: MUSEUMS.smk.name, id: r.object_number, title: clean(title) || "Untitled",
     artist: /^ukendt/i.test(artist || "") ? null : artist, artistBio: bio || null,
-    date: clean(pd.period) || null, year: yr(pd.start), place: null,
+    date: clean(pd.period) || null, year: yr(pd.start), place: NAT[String(prod.creator_nationality || "").toLowerCase()] || null,   // nationality stands in for place
     medium: da((r.techniques || [])[0]), mediumFamily: mediumFamily(da((r.techniques || [])[0]) || ""), kind: da(((r.object_names || [])[0] || {}).name),
     movement: null, subjects: [], color: null,
     image: r.image_thumbnail, imageLarge: r.image_iiif_id ? `${r.image_iiif_id}/full/!2000,2000/0/default.jpg` : r.image_thumbnail,

@@ -192,7 +192,33 @@ const store = (p) => pp(p, () => JSON.parse(localStorage.getItem("pp-alpha-v1"))
     const s = await store(p); expect(s.settings.tone === "docent" && s.notes.at(-1).tone === "docent", `tone ${s.notes.at(-1).tone}`);
     await p.selectOption("#toneSel", "cheeky");
   });
-  await check("taste.badges", async () => { const n = await p.locator(".badges li.earned").count(); expect(n >= 1, "no badges shown as earned"); return `${n} earned`; });
+  await check("taste.badges", async () => {
+    const total = await p.locator(".cabinet .pin").count(), n = await p.locator(".cabinet .pin.earned").count();
+    expect(total === 39, `${total} pins in the cabinet`); expect(n >= 1, "no pins shown as earned");
+    expect(Object.keys((await store(p)).badges).some((k) => k === "pin:first-love:1"), "First Love not recorded");
+    await p.locator(".cabinet .pin.earned").first().click(); await p.waitForSelector("#modal:not([hidden]) .walllabel");
+    expect((await p.textContent("#modalBody .walllabel")).length > 10, "pin detail has no wall label");
+    await p.waitForTimeout(400); await p.screenshot({ path: `${OUT}/pin-detail.png` }); await p.click("#modalOk");
+    await p.locator(".cabinet .pin.locked").first().click(); await p.waitForSelector("#modal:not([hidden])");
+    expect(/Opens at|of \d|Still to love|^/.test(await p.textContent("#modalBody")), "locked pin detail"); await p.click("#modalOk");
+    return `${n} of ${total} earned`;
+  });
+  await check("taste.portrait", async () => {
+    await p.locator("#view-taste").evaluate((el) => el.scrollTo(0, 0));
+    const title = await p.textContent("#t-portrait h1"); expect(/^The /.test(title), `eye title: ${title}`);
+    expect(await p.locator(".callit i").count() >= 5, "no Called it strip");
+    await p.screenshot({ path: `${OUT}/portrait.png` });
+    return title;
+  });
+  await check("taste.jump", async () => {
+    await p.click('.jump a[data-jump="t-badges"]'); await p.waitForTimeout(700);
+    expect(await p.getAttribute('.jump a[data-jump="t-badges"]', "aria-current") === "true", "Badges not highlighted after jumping");
+    const top = await p.locator("#t-badges").evaluate((el) => el.getBoundingClientRect().top); expect(top >= 0 && top < 140, `Badges section at ${top}px`);
+    await p.screenshot({ path: `${OUT}/badges.png` });
+    await p.locator("#view-taste").evaluate((el) => el.scrollTo(0, el.scrollHeight)); await p.waitForTimeout(250);
+    expect(await p.getAttribute('.jump a[data-jump="t-leanings"]', "aria-current") === "true", "scrolling to the end doesn't highlight Leanings");
+    await p.click('.jump a[data-jump="t-portrait"]'); await p.waitForTimeout(700);
+  });
   await check("taste.leanings", async () => {
     expect(await p.locator(".dim .row").count() > 2, "no leanings"); expect(/Why you love/.test(await p.textContent("#view-taste")), "no reasons section");
     expect(/Left you undecided/.test(await p.textContent("#view-taste")), "no undecided list");
@@ -271,6 +297,29 @@ const store = (p) => pp(p, () => JSON.parse(localStorage.getItem("pp-alpha-v1"))
   await check("app.errors", async () => { expect(!errs.length, errs.slice(0, 2).join(" | ")); });
   await ctx.close();
 }
+
+/* ================= Session F: an existing collection meets the cabinet ================= */
+await check("badges.ceremony", async () => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
+  await mockWorld(ctx);
+  const p = await ctx.newPage(); await p.goto(APP);
+  await pp(p, () => {
+    const MV = ["Impressionism", "Baroque", "Ukiyo-e", "Cubism", "Realism", "Rococo", "Symbolism", "Fauvism", "Gothic", "Romanticism", "Byzantine", "Expressionism"];
+    const swipes = Array.from({ length: 60 }, (_, i) => ({ uid: `aic:${9000 + i}`, v: i % 4 === 0 ? 2 : i % 3 ? 1 : -1, t: Date.now() - (60 - i) * 60000, f: [`style|${MV[i % 12]}`, `cent|c${i % 7}`, "place|France"],
+      a: { uid: `aic:${9000 + i}`, src: "aic", title: `Work ${i}`, artist: `Painter ${i % 9}`, movement: MV[i % 12], year: 1500 + i * 7, place: i % 2 ? "France" : "Japan" } }));
+    localStorage.clear(); localStorage.setItem("pp-alpha-v1", JSON.stringify({ onboarded: true, swipes, level: 1, badges: { "first-love": 1 } }));
+  });
+  await p.reload(); await p.waitForSelector("#modal:not([hidden])", { timeout: 8000 });
+  expect(/Your cabinet is open/.test(await p.textContent("#modalBody")), "no welcome-back cabinet");
+  const n = await p.locator("#modalBody .pinrow figure").count(); expect(n >= 3, `only ${n} pins in the ceremony`);
+  await p.waitForTimeout(600); await p.screenshot({ path: `${OUT}/ceremony.png` });
+  await p.click("#modalOk"); await p.waitForTimeout(700);
+  expect(await p.isVisible("#view-taste") && await p.getAttribute('.jump a[data-jump="t-badges"]', "aria-current") === "true", "didn't land on Badges");
+  await p.reload(); await p.waitForTimeout(800);
+  expect(!/Your cabinet is open/.test((await p.textContent("#modalBody").catch(() => "")) || "") || await p.isHidden("#modal"), "ceremony showed twice");
+  await ctx.close();
+  return `${n} pins`;
+});
 
 /* ================= Session B: broken images ================= */
 await check("look.broken", async () => {

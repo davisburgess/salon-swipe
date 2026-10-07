@@ -41,7 +41,16 @@ export const FEATURES = [
   { id: "taste.notes", name: "Curator's Notes vary, follow the tone, avoid repeats", where: ["alpha/js/rewards.js", "app.js#progress", "app.js#Taste"],
     checks: ["unit:offline note draws only on facts we have", "e2e:taste.notes"] },
   { id: "taste.tone", name: "Tone setting changes the notes", where: ["app.js#Taste", "alpha/js/rewards.js"], checks: ["e2e:taste.tone"] },
-  { id: "taste.badges", name: "Badges", where: ["alpha/js/rewards.js", "app.js#progress"], checks: ["e2e:taste.badges"] },
+  { id: "taste.badges", name: "Badge cabinet: 39 pins, tap for detail and wall label", where: ["alpha/js/badges.js", "app.js#Taste", "app.js#progress"],
+    checks: ["unit:cabinet: 39 pins, unique ids, every rule runs on an empty history", "unit:lineages, secrets and dates come from real-looking history", "e2e:taste.badges"] },
+  { id: "badges.tiers", name: "Tiers earned early stay sealed until your level arrives", where: ["alpha/js/badges.js", "app.js#progress"],
+    checks: ["unit:tiers earned beyond your level stay sealed until the level arrives"] },
+  { id: "badges.ceremony", name: "Existing history earns its pins in one welcome-back moment", where: ["app.js#progress", "alpha/js/badges.js"], checks: ["e2e:badges.ceremony"] },
+  { id: "taste.portrait", name: "Your eye as a title, traits, Called it", where: ["alpha/js/badges.js", "app.js#Taste", "app.js#decisions"],
+    checks: ["unit:eye traits need a clear lean and enough looking; the title follows", "e2e:taste.portrait"] },
+  { id: "taste.jump", name: "Sticky jump bar scrolls to sections and follows your scroll", where: ["app.js#Taste", "alpha/app.css"], checks: ["e2e:taste.jump"] },
+  { id: "geo.places", name: "Places mapped to modern countries", where: ["alpha/js/geo.js"], checks: ["unit:place lexicon maps how museums describe place to modern countries"] },
+  { id: "app.shell", name: "Offline shell includes every module", where: ["alpha/sw.js"], checks: ["unit:offline shell lists every module the app imports", "e2e:app.offline"] },
   { id: "taste.leanings", name: "What you respond to, reasons, undecided list", where: ["app.js#Taste", "alpha/js/model.js"], checks: ["e2e:taste.leanings"] },
 
   // Kept

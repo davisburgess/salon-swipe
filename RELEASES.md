@@ -6,6 +6,28 @@ How every release ships:
 3. **GitHub re-runs everything on each push** (Actions, "Checks"), and probes the real museum APIs every morning, which the build workspace can't reach. A commit message containing `[live]` runs that probe immediately; every release commit uses it.
 4. **At most one small usability improvement per release,** listed here so you can veto it. Never a change to gestures, saved data, or anything you'd have to relearn without asking first.
 
+## 0.3.0-alpha (Oct 7, 2026)
+
+**Change requested by you: a Taste screen worth exploring.** First of three releases (then Museums, then the Atlas map).
+- **Badge cabinet:** 39 enamel pins in eight families, each with a rule and a wall label (one true line about art, or a dry one about you). Tap any pin for its detail and progress. Locked pins show in faded full color; the six secret pins stay embossed with a "?" until earned.
+- **Tiers with seals:** five pins go bronze, silver, gilt and a new top tier, lapis. Higher tiers count from day one but stay sealed until your level arrives: silver at Collector, gilt at Curator, lapis at Connoisseur. Leveling up shows the seals you broke. Thresholds run higher than the old badges (for example, Salon Hang: 50, 150, 400, then 1,000 keeps).
+- **New top level, Director:** 1,500 decisions, 30 movements, 72% predicted. Existing levels are unchanged, so nobody is demoted.
+- **Your history counts:** the first time you open this version, your existing decisions earn their pins in one "Your cabinet is open" moment instead of a stream of pop-ups.
+- **Portrait:** your eye as a title ("The Moody Old Master"), drawn from the visual quality and movement you keep most; your strongest traits; level progress; and **Called it**, which shows how often the app guessed your last 10 decisions right. The title remembers what it was before.
+- **One page, a sticky jump bar:** Portrait, Badges, Leanings. Tap to jump or just scroll; the bar follows along.
+- **Place lexicon (groundwork for the Atlas):** maps how museums describe place ("Mughal India, court of Akbar", "Venetian", "Norwegian, 1876–1926") to modern countries. It places 98.8% of National Gallery works and 99.4% of Cleveland's that have any place; the rest stay unknown rather than guessed.
+
+**Review found and fixed**
+- The offline cache would have missed the two new modules, which would have broken the app offline. A new test now fails if any module the app imports is missing from the offline list.
+- SMK works had no place at all; they now use the artist's nationality, as the National Gallery does.
+
+**Usability improvement:** Kept a pin's progress one tap away: every pin opens its rule, tiers and what's left.
+
+**Pushback, recorded:** you suggested gating which badges are available by level. Every badge counts from the start instead, because a Love that earns nothing feels like cheating. Level gates the *higher tiers* via seals.
+
+**Checks:** 43 unit and backend tests (new: place lexicon, cabinet integrity, seals, lineages and secrets, eye traits and titles, offline shell), 40 of 40 browser checks (new: taste.portrait, taste.jump, badges.ceremony; taste.badges rewritten).
+**On your phone:** open the app; you should see "Your cabinet is open." Tap "See them in Taste," tap a pin, and check its wall label. Use the jump bar, then scroll and watch it follow.
+
 ## 0.2.0-alpha (Oct 6, 2026)
 
 **Change requested by you: more art.** Seven sources instead of three, roughly 46,000 more works on disk plus four live collections.
@@ -60,5 +82,6 @@ First alpha: gallery-wall design, three museums, opening hang, taste model, Late
 - Let the Kept grid sort by newest, artist, or date made.
 - Remember scroll position in Kept when you come back from the wall text.
 - Show a one-line "why this was picked" on Kept tiles you loved from a New style.
+- Date historical pins by the decision that earned them, not the day the cabinet opened.
 - Larger tap targets on the Kept filters at phone width.
 - Haptic tick on Android when a drag crosses the decision point.

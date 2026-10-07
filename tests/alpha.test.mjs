@@ -327,3 +327,69 @@ test("Met search uses the paginated v1.1 endpoint (v1 was retired Oct 1, 2026)",
     assert.ok(urls.some((u) => /\/v1\.1\/search\?.*offset=\d+&limit=\d+/.test(u)) && !urls.some((u) => /\/v1\/search/.test(u)));
   } finally { globalThis.fetch = realFetch; }
 });
+
+/* ---------- 0.3: badge cabinet, place lexicon ---------- */
+import { BADGES, badgeStats, award, pinState, unsealedAt, reached, byId, eyeTitle, closest } from "../alpha/js/badges.js";
+import { placeOf } from "../alpha/js/geo.js";
+const mkSw = (i, v, a = {}, extra = {}) => ({ uid: `t:${i}`, v, t: 1_700_000_000_000 + i * 60_000, f: [a.movement && `style|${a.movement}`, a.year != null && `cent|c${Math.floor(a.year / 100)}`].filter(Boolean), a: { uid: `t:${i}`, title: `W${i}`, ...a }, ...extra });
+
+test("place lexicon maps how museums describe place to modern countries", () => {
+  const cases = { "France, 19th century": "FR", "Mughal India, court of Akbar (reigned 1556–1605)": "IN", "Venetian": "IT", "Japan, Edo period (1615–1868)": "JP",
+    "American, born England, 1830 - 1904": "US", "Norwegian, 1876–1926": "NO", "Kingdom of the Netherlands": "NL", "Nigeria, Edo peoples, Court of Benin": "NG", "Flemish": "BE", "Persian": "IR" };
+  for (const [t, iso] of Object.entries(cases)) assert.equal(placeOf(t)?.iso, iso, t);
+  assert.equal(placeOf("Romanesque"), null, "Romanesque isn't Roman"); assert.equal(placeOf("Unknown"), null);
+  assert.deepEqual(placeOf("West Africa"), { iso: null, continent: "AF" }, "continent-only places count for continents, not countries");
+});
+
+test("cabinet: 39 pins, unique ids, every rule runs on an empty history", () => {
+  assert.equal(BADGES.length, 39); assert.equal(new Set(BADGES.map((b) => b.id)).size, 39);
+  const st = badgeStats({ swipes: [], badges: {} }, null);
+  for (const b of BADGES) assert.equal(reached(b, st), 0, b.id);
+});
+
+test("tiers earned beyond your level stay sealed until the level arrives", () => {
+  const swipes = Array.from({ length: 30 }, (_, i) => mkSw(i, 1, { movement: `Movement ${i}` }));
+  const state = { swipes, badges: {} };
+  const st = badgeStats(state, null);
+  assert.equal(reached(byId["grand-tour"], st), 2, "30 movements is silver");
+  const fresh = award(state, st, 0);
+  const gt = fresh.filter((f) => f.b.id === "grand-tour");
+  assert.deepEqual(gt.map((f) => [f.tier, f.sealed]), [[1, false], [2, true]], "silver sealed for a Visitor");
+  let ps = pinState(state, byId["grand-tour"], st, 0); assert.equal(ps.shown, 1); assert.equal(ps.sealed, 2);
+  assert.ok(unsealedAt(state, 2).some((u) => u.b.id === "grand-tour" && u.tier === 2), "reaching Collector breaks the silver seal");
+  ps = pinState(state, byId["grand-tour"], st, 2); assert.equal(ps.shown, 2); assert.equal(ps.sealed, 0);
+  assert.equal(award(state, st, 2).length, 0, "nothing is awarded twice");
+  const near = closest(state, st, 0); assert.ok(near.length >= 1 && near.every((x) => x.frac < 1));
+});
+
+test("lineages, secrets and dates come from real-looking history", () => {
+  const swipes = [
+    mkSw(1, 2, { movement: "Ukiyo-e", year: 1830, place: "Japan" }), mkSw(2, 2, { movement: "Impressionism", year: 1874, place: "France" }),
+    mkSw(3, 2, { movement: "Byzantine", year: 1100 }), mkSw(4, 2, { movement: "Impressionism", year: 1880 }), mkSw(5, 2, { movement: "Realism", year: 1855 }),
+    mkSw(6, -1, { artist: "Claude Monet", movement: "Impressionism", year: 1890 }), mkSw(7, 2, { year: -1350, place: "Egypt" }), mkSw(8, 1, { year: 1930, place: "Mexico" }),
+  ];
+  const st = badgeStats({ swipes, badges: {} }, null);
+  const got = (id) => reached(byId[id], st) > 0;
+  assert.ok(got("japonisme"), "ukiyo-e plus Impressionism"); assert.ok(!got("gold-standard"), "Byzantine alone isn't enough");
+  assert.equal(byId["gold-standard"].progress(st).hint, "Done: Byzantine. Still to love: Vienna Secession.");
+  assert.ok(got("stendhal"), "five Loves in a row"); assert.ok(got("hot-take"), "passed on a Monet"); assert.ok(got("deep-time")); assert.ok(!got("wet-paint"), "a Keep from 1930 isn't a Love");
+  assert.ok(st.countries.has("JP") && st.countries.has("EG") && st.countries.has("MX"));
+});
+
+test("eye traits need a clear lean and enough looking; the title follows", () => {
+  const counts = new Map([["light|Dark", { p: 30, n: 4, c: 24 }], ["sat|Vivid", { p: 6, n: 14, c: 17 }]]);
+  const model = { counts, accuracy: 0.7, leaning: () => [{ value: "Dutch Golden Age", weight: 0.8 }] };
+  const swipes = Array.from({ length: 60 }, (_, i) => mkSw(i, i % 2 ? 1 : -1));
+  const st = badgeStats({ swipes, badges: {} }, model);
+  assert.ok(reached(byId.tenebrist, st) > 0); assert.equal(reached(byId["wild-beast"], st), 0);
+  assert.equal(eyeTitle(st, model).title, "The Moody Old Master");
+  assert.equal(eyeTitle(badgeStats({ swipes: swipes.slice(0, 10), badges: {} }, model), model), null, "no title before 25 decisions");
+});
+
+test("offline shell lists every module the app imports", () => {
+  const dir = new URL("../alpha/js/", import.meta.url), seen = new Set(), queue = ["app.js"];
+  while (queue.length) { const f = queue.pop(); if (seen.has(f)) continue; seen.add(f);
+    for (const m of readFileSync(new URL(f, dir), "utf8").matchAll(/from "\.\/([\w-]+\.js)"/g)) queue.push(m[1]); }
+  const sw = readFileSync(new URL("../alpha/sw.js", import.meta.url), "utf8");
+  for (const f of seen) assert.ok(sw.includes(`"./js/${f}"`), `sw.js SHELL is missing js/${f}`);
+});
