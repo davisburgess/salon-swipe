@@ -90,10 +90,10 @@ const store = (p) => pp(p, () => JSON.parse(localStorage.getItem("pp-alpha-v1"))
     await p.screenshot({ path: `${OUT}/why.png` }); await p.keyboard.press("Escape");
   });
   await check("look.undo", async () => {
-    const a = await topTitle(p); await press(p, "ArrowRight"); const b = await topTitle(p); await press(p, "ArrowDown");
+    const a = await topTitle(p), aUid = await pp(p, () => __pp.deck.queue[0].uid); await press(p, "ArrowRight"); const b = await topTitle(p); await press(p, "ArrowDown");
     await p.click("#btnUndo"); await p.waitForTimeout(300); expect(await topTitle(p) === b, "undo of Later failed");
     await p.click("#btnUndo"); await p.waitForTimeout(300); expect(await topTitle(p) === a, "undo of keep failed");
-    expect(!(await store(p)).swipes.some((s) => a.startsWith(s.a.title + ",") || a === s.a.title), "undone decision still stored");
+    expect(!(await store(p)).swipes.some((s) => s.uid === aUid), "undone decision still stored");   // by id: museum titles repeat
   });
   await check("look.newstyle", async () => {
     const t = await topTitle(p), n = (await store(p)).swipes.length;

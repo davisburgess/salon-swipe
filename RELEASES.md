@@ -23,6 +23,10 @@ How every release ships:
 - The eye title's movement now comes from your own tallies, not the model's weights.
 - 46 pins (was 39). Salon Hang moved to Habits.
 
+**Review found and fixed**
+- Browsing Wikidata asked for a random slice deep into every painting, which timed out on the live probe (20 seconds), so those cards silently never arrived. Browsing now picks a well-covered movement at a random depth, with fallbacks; it answers in about half a second.
+- The undo browser check matched works by title, and museum titles repeat ("Portrait of a Man"), so it could fail by chance. It now matches by each work's id.
+
 **Checks:** 46 unit and backend tests (new: fair app scoring, levels ignore accuracy, pattern pins), 41 of 41 browser checks.
 **On your phone:** open Taste. Your level shows decisions and movements only; "How well we know you" says Stranger until about 20 new matches, then gives the two percentages.
 
