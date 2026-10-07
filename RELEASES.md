@@ -2,7 +2,7 @@
 
 How every release ships:
 1. **Impact map.** `node tests/impact.mjs <last release>` lists every feature the change touches (down to sections of `app.js`).
-2. **Full review, not just the impacted parts.** All 40 features in `tests/features.mjs` are checked on every release: unit and backend tests, then 35 named browser checks in `tests/e2e.mjs`. The run takes about two minutes, so there's no reason to check only part of it. Impact decides what to eyeball on a phone, not what to test.
+2. **Full review, not just the impacted parts.** Every feature in `tests/features.mjs` is checked on every release: unit and backend tests, then a named browser check per feature in `tests/e2e.mjs`. A test fails if the list and the checks drift apart. The run takes about two minutes, so there's no reason to check only part of it. Impact decides what to eyeball on a phone, not what to test.
 3. **GitHub re-runs everything on each push** (Actions, "Checks"), and probes the real museum APIs every morning, which the build workspace can't reach.
 4. **At most one small usability improvement per release,** listed here so you can veto it. Never a change to gestures, saved data, or anything you'd have to relearn without asking first.
 
