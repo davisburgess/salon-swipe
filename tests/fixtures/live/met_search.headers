@@ -4,10 +4,10 @@ Vary: Origin
 Access-Control-Allow-Origin: *
 X-Powered-By: ARR/3.0
 X-Powered-By: ASP.NET
-Date: Wed, 07 Oct 2026 01:37:13 GMT
+Date: Wed, 07 Oct 2026 01:39:14 GMT
 Content-Length: 438
-Set-Cookie: visid_incap_1662004=NrFkANUwRpyUyvCNEMaDyEmixWoAAAAAQUIPAAAAAAB5+nDY1RgXUVkWGZ5phJx7; expires=Wed, 06 Oct 2027 07:06:57 GMT; HttpOnly; path=/; Domain=.metmuseum.org
-Set-Cookie: incap_ses_1017_1662004=qKdjH+x6LElhVSKbMRwdDkqixWoAAAAA81d/2MAcga2HKr2Ldbr5Hg==; path=/; Domain=.metmuseum.org
+Set-Cookie: visid_incap_1662004=k/zU3MLzT8WNqcWUDpO79sGixWoAAAAAQUIPAAAAAAC8d0lU9y3wLcyfvq+59dpr; expires=Wed, 06 Oct 2027 06:46:53 GMT; HttpOnly; path=/; Domain=.metmuseum.org
+Set-Cookie: incap_ses_189_1662004=17KlVM1oTBB+xOns1XafAsOixWoAAAAA5KSSJDhlmJjBoT9Gp7LBUA==; path=/; Domain=.metmuseum.org
 X-CDN: Imperva
-X-Iinfo: 52-18491032-18491142 NNNY CT(7 8 0) RT(1791337035484 20) q(0 3 3 296) r(3 3) U11
+X-Iinfo: 44-84605145-84605157 NNNY CT(68 140 0) RT(1791337156275 50) q(0 0 0 0) r(1 1) U11
 
