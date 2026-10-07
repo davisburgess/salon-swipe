@@ -7,7 +7,7 @@ What feeds Picture Plane, what's next, and what needs real product work. Every s
 | Source | How | Licence | Strength |
 |---|---|---|---|
 | Art Institute of Chicago | Live API, CORS open | CC0 public-domain images | Impressionism, modern, Japanese prints |
-| The Met | Live API, CORS open | CC0 Open Access | Breadth across 5,000 years |
+| The Met | Live API (v1.1 search since Oct 2026), CORS open | CC0 Open Access | Breadth across 5,000 years |
 | National Gallery of Art | Open dataset (GitHub), rebuilt monthly; IIIF images | CC0 | European and American painting, folk art |
 | Cleveland Museum of Art | Open dataset (GitHub), rebuilt monthly | CC0 | Asian, Egyptian, Islamic, medieval |
 | Wikidata + Wikimedia Commons | Live SPARQL, CORS open | Public domain (artists died before 1955) | Modern movements other museums lack |
