@@ -1,10 +1,7 @@
 HTTP/2 200 
-date: Wed, 07 Oct 2026 01:13:59 GMT
+date: Wed, 07 Oct 2026 01:37:14 GMT
 content-type: image/jpeg
-content-length: 9700
 server: cloudflare
-last-modified: Mon, 22 Jun 2020 18:16:02 GMT
-vary: Accept-Encoding
 x-powered-by: IIPImage
 cache-control: public, max-age=86400
 content-disposition: inline;filename="privateimages00007f00007f61-4922-417b-8f27-893ea328206c__0"
@@ -13,12 +10,13 @@ access-control-allow-methods: *
 access-control-allow-headers: *
 access-control-max-age: 3600
 access-control-allow-credentials: false
-accept-ranges: bytes
-x-cache: HIT from api.nga.gov
-set-cookie: __cf_bm=pO_JhT8EF5eicTqQH1cAMzxtogm4hz8U.Z7OIFw3rFc-1791335639.1845493-1.0.1.1-3gcKn1wRcTDidECjMKNeftqJxFptR7fPCP5rmrJa5Ef97CuCS8.YuL8TcnHSh132Jpf3QVHKptqZEIY1QlNVyFlOIA3C.IiJsw3Hvu62irbNksWW0u_ddFDoVVhmGvlh; HttpOnly; SameSite=None; Secure; Path=/; Domain=nga.gov; Expires=Wed, 07 Oct 2026 01:43:59 GMT
+last-modified: Mon, 22 Jun 2020 18:16:02 GMT
+vary: Accept-Encoding
+x-cache: MISS from api.nga.gov
 x-content-type-options: nosniff
-expires: Thu, 08 Oct 2026 01:13:59 GMT
+set-cookie: __cf_bm=flN.U3BRCDwgka.w0mSj908BYIuxDdqvibKEo0w3tQ0-1791337034.5181062-1.0.1.1-.LfoQAxTb95SteEuGBUqQWd0dakKCiFlh5V3a3JDnwP13asp_5JMN1OknB4z7KRytsBFqyfSNqZzRivXtT8GA7f9MMobGI.fiP1hcxZhrdEY8Idy02gGhaxJppxfj7YC; HttpOnly; SameSite=None; Secure; Path=/; Domain=nga.gov; Expires=Wed, 07 Oct 2026 02:07:14 GMT
+expires: Thu, 08 Oct 2026 01:37:14 GMT
 cf-cache-status: MISS
 strict-transport-security: max-age=31536000; includeSubDomains; preload
-cf-ray: a4690be0ee89964b-LAX
+cf-ray: a4692df1b918e091-IAD
 

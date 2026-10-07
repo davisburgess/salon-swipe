@@ -1,0 +1,13 @@
+HTTP/1.1 410 Gone
+Content-Type: application/json
+Vary: Origin
+Access-Control-Allow-Origin: *
+X-Powered-By: ARR/3.0
+X-Powered-By: ASP.NET
+Date: Wed, 07 Oct 2026 01:37:13 GMT
+Content-Length: 438
+Set-Cookie: visid_incap_1662004=NrFkANUwRpyUyvCNEMaDyEmixWoAAAAAQUIPAAAAAAB5+nDY1RgXUVkWGZ5phJx7; expires=Wed, 06 Oct 2027 07:06:59 GMT; HttpOnly; path=/; Domain=.metmuseum.org
+Set-Cookie: incap_ses_1017_1662004=tqTrRpO1oy1hVSKbMRwdDkqixWoAAAAAx+WqHiqnfplopJ0xS9JvBg==; path=/; Domain=.metmuseum.org
+X-CDN: Imperva
+X-Iinfo: 29-9296617-9296619 NNNN CT(8 19 0) RT(1791337035842 20) q(0 0 0 35) r(0 0) U11
+

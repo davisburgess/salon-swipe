@@ -1,13 +1,13 @@
 HTTP/2 200 
 content-type: application/json
-date: Wed, 07 Oct 2026 01:13:57 GMT
+date: Wed, 07 Oct 2026 01:37:13 GMT
 etag: "01bfe1668ed2ea625a6b946b4b24ec7a"
 server: Apache/2.4.68 (Amazon Linux) OpenSSL/3.5.8
 cache-control: no-cache, private
 access-control-allow-origin: *
 vary: Accept-Encoding
 x-cache: Miss from cloudfront
-via: 1.1 327f096e9672227dba0db315044c3d8c.cloudfront.net (CloudFront)
-x-amz-cf-pop: PHX50-P2
-x-amz-cf-id: wYgcK7A7754tkavabXRlL1ifoXuoOVXltha1g7aQBiYAiPm7HnLRIg==
+via: 1.1 0cba74644cedf83bb6fb7dc90d8b0980.cloudfront.net (CloudFront)
+x-amz-cf-pop: IAD12-P2
+x-amz-cf-id: ufxlOXaYy1ttX9QUhvfroXEm--nIXvX8qwJDgSuO-1CW5-0Mn7mR3A==
 
