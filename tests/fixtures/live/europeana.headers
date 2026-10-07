@@ -1,0 +1,18 @@
+HTTP/2 200 
+date: Wed, 07 Oct 2026 01:14:00 GMT
+content-type: application/json;charset=UTF-8
+vary: Accept-Encoding
+vary: Origin
+vary: Access-Control-Request-Method
+vary: Access-Control-Request-Headers
+access-control-allow-origin: *
+access-control-expose-headers: Allow, Vary, Link, ETag
+ratelimit: "project";r=997933;t=2760
+ratelimit-policy: "project";q=1000000;w=3600
+allow: GET, HEAD, POST
+content-language: en-US
+strict-transport-security: max-age=31536000; includeSubDomains
+cf-cache-status: DYNAMIC
+server: cloudflare
+cf-ray: a4690be6c9a4eb7b-SEA
+

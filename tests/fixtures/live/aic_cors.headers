@@ -1,0 +1,13 @@
+HTTP/2 200 
+content-type: application/json
+date: Wed, 07 Oct 2026 01:13:57 GMT
+etag: "01bfe1668ed2ea625a6b946b4b24ec7a"
+server: Apache/2.4.68 (Amazon Linux) OpenSSL/3.5.8
+cache-control: no-cache, private
+access-control-allow-origin: *
+vary: Accept-Encoding
+x-cache: Miss from cloudfront
+via: 1.1 327f096e9672227dba0db315044c3d8c.cloudfront.net (CloudFront)
+x-amz-cf-pop: PHX50-P2
+x-amz-cf-id: wYgcK7A7754tkavabXRlL1ifoXuoOVXltha1g7aQBiYAiPm7HnLRIg==
+

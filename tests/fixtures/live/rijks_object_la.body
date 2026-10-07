@@ -1,0 +1,48 @@
+{
+  "resource": "https://data.rijksmuseum.nl/200100988",
+  "profiles": [
+    {
+      "uri": "http://purl.org/dc/terms/",
+      "media_types": [
+        "application/ld+json",
+        "application/n-triples"
+      ],
+      "token": "dc"
+    },
+    {
+      "uri": "http://www.europeana.eu/schemas/edm/",
+      "media_types": [
+        "application/rdf+xml"
+      ],
+      "token": "edm"
+    },
+    {
+      "uri": "http://www.openarchives.org/OAI/2.0/oai_dc/",
+      "media_types": [
+        "application/xml"
+      ],
+      "token": "oai_dc"
+    },
+    {
+      "uri": "https://linked.art/ns/terms/",
+      "media_types": [
+        "application/n-triples"
+      ],
+      "token": "la"
+    },
+    {
+      "uri": "https://linked.art/ns/v1/linked-art.json",
+      "media_types": [
+        "application/ld+json"
+      ],
+      "token": "la-framed"
+    },
+    {
+      "uri": "https://www.europeana.eu/schemas/context/edm.jsonld",
+      "media_types": [
+        "application/ld+json"
+      ],
+      "token": "edm-framed"
+    }
+  ]
+}

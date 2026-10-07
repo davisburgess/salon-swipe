@@ -1,0 +1,231 @@
+{
+  "head" : {
+    "vars" : [ "item", "itemLabel", "image", "creatorLabel", "inception", "movementLabel", "collectionLabel", "countryLabel", "height", "width" ]
+  },
+  "results" : {
+    "bindings" : [ {
+      "item" : {
+        "type" : "uri",
+        "value" : "http://www.wikidata.org/entity/Q3225805"
+      },
+      "image" : {
+        "type" : "uri",
+        "value" : "http://commons.wikimedia.org/wiki/Special:FilePath/Berthe%20Morisot%2C%20The%20Harbor%20at%20Lorient%2C%201869%2C%20NGA%2052192.jpg"
+      },
+      "inception" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#dateTime",
+        "type" : "literal",
+        "value" : "1869-01-01T00:00:00Z"
+      },
+      "height" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#decimal",
+        "type" : "literal",
+        "value" : "43.5"
+      },
+      "width" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#decimal",
+        "type" : "literal",
+        "value" : "73"
+      },
+      "itemLabel" : {
+        "xml:lang" : "en",
+        "type" : "literal",
+        "value" : "The Port at Lorient"
+      },
+      "creatorLabel" : {
+        "xml:lang" : "en",
+        "type" : "literal",
+        "value" : "Berthe Morisot"
+      },
+      "movementLabel" : {
+        "xml:lang" : "en",
+        "type" : "literal",
+        "value" : "Impressionism"
+      },
+      "collectionLabel" : {
+        "type" : "literal",
+        "value" : "Q214867"
+      }
+    }, {
+      "item" : {
+        "type" : "uri",
+        "value" : "http://www.wikidata.org/entity/Q3226360"
+      },
+      "image" : {
+        "type" : "uri",
+        "value" : "http://commons.wikimedia.org/wiki/Special:FilePath/Alfred%20Sisley%20-%20Rest%20along%20the%20Stream.%20Edge%20of%20the%20Wood%20-%20Google%20Art%20Project.jpg"
+      },
+      "inception" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#dateTime",
+        "type" : "literal",
+        "value" : "1878-01-01T00:00:00Z"
+      },
+      "height" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#decimal",
+        "type" : "literal",
+        "value" : "730"
+      },
+      "width" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#decimal",
+        "type" : "literal",
+        "value" : "800"
+      },
+      "itemLabel" : {
+        "xml:lang" : "en",
+        "type" : "literal",
+        "value" : "Le Repos au bord d'un ruisseau. Lisière de bois"
+      },
+      "creatorLabel" : {
+        "xml:lang" : "en",
+        "type" : "literal",
+        "value" : "Alfred Sisley"
+      },
+      "movementLabel" : {
+        "xml:lang" : "en",
+        "type" : "literal",
+        "value" : "Impressionism"
+      },
+      "collectionLabel" : {
+        "xml:lang" : "en",
+        "type" : "literal",
+        "value" : "Musée d'Orsay"
+      }
+    }, {
+      "item" : {
+        "type" : "uri",
+        "value" : "http://www.wikidata.org/entity/Q3231001"
+      },
+      "image" : {
+        "type" : "uri",
+        "value" : "http://commons.wikimedia.org/wiki/Special:FilePath/Alfred%20Sisley%20021.jpg"
+      },
+      "inception" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#dateTime",
+        "type" : "literal",
+        "value" : "1877-01-01T00:00:00Z"
+      },
+      "height" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#decimal",
+        "type" : "literal",
+        "value" : "54.3"
+      },
+      "width" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#decimal",
+        "type" : "literal",
+        "value" : "64.7"
+      },
+      "itemLabel" : {
+        "xml:lang" : "en",
+        "type" : "literal",
+        "value" : "The Banks of the Oise"
+      },
+      "creatorLabel" : {
+        "xml:lang" : "en",
+        "type" : "literal",
+        "value" : "Alfred Sisley"
+      },
+      "movementLabel" : {
+        "xml:lang" : "en",
+        "type" : "literal",
+        "value" : "Impressionism"
+      },
+      "collectionLabel" : {
+        "type" : "literal",
+        "value" : "Q214867"
+      }
+    }, {
+      "item" : {
+        "type" : "uri",
+        "value" : "http://www.wikidata.org/entity/Q3231771"
+      },
+      "image" : {
+        "type" : "uri",
+        "value" : "http://commons.wikimedia.org/wiki/Special:FilePath/Claude%20Monet%20-%20Poppy%20Field%20-%20Google%20Art%20Project.jpg"
+      },
+      "inception" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#dateTime",
+        "type" : "literal",
+        "value" : "1873-01-01T00:00:00Z"
+      },
+      "height" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#decimal",
+        "type" : "literal",
+        "value" : "500"
+      },
+      "width" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#decimal",
+        "type" : "literal",
+        "value" : "650"
+      },
+      "itemLabel" : {
+        "xml:lang" : "en",
+        "type" : "literal",
+        "value" : "The Poppy Field near Argenteuil"
+      },
+      "creatorLabel" : {
+        "xml:lang" : "en",
+        "type" : "literal",
+        "value" : "Claude Monet"
+      },
+      "movementLabel" : {
+        "xml:lang" : "en",
+        "type" : "literal",
+        "value" : "Impressionism"
+      },
+      "collectionLabel" : {
+        "xml:lang" : "en",
+        "type" : "literal",
+        "value" : "Musée d'Orsay"
+      },
+      "countryLabel" : {
+        "xml:lang" : "en",
+        "type" : "literal",
+        "value" : "France"
+      }
+    }, {
+      "item" : {
+        "type" : "uri",
+        "value" : "http://www.wikidata.org/entity/Q3232513"
+      },
+      "image" : {
+        "type" : "uri",
+        "value" : "http://commons.wikimedia.org/wiki/Special:FilePath/Claude%20Monet%20The%20Cliffs%20at%20Etretat.jpg"
+      },
+      "inception" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#dateTime",
+        "type" : "literal",
+        "value" : "1885-01-01T00:00:00Z"
+      },
+      "height" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#decimal",
+        "type" : "literal",
+        "value" : "65"
+      },
+      "width" : {
+        "datatype" : "http://www.w3.org/2001/XMLSchema#decimal",
+        "type" : "literal",
+        "value" : "81.1"
+      },
+      "itemLabel" : {
+        "xml:lang" : "en",
+        "type" : "literal",
+        "value" : "The Cliffs at Étretat"
+      },
+      "creatorLabel" : {
+        "xml:lang" : "en",
+        "type" : "literal",
+        "value" : "Claude Monet"
+      },
+      "movementLabel" : {
+        "xml:lang" : "en",
+        "type" : "literal",
+        "value" : "Impressionism"
+      },
+      "collectionLabel" : {
+        "xml:lang" : "en",
+        "type" : "literal",
+        "value" : "Clark Art Institute"
+      }
+    } ]
+  }
+}

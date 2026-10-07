@@ -1,0 +1,10 @@
+HTTP/2 200 
+date: Wed, 07 Oct 2026 01:13:55 GMT
+content-type: application/ld+json
+content-length: 7860
+access-control-allow-origin: *
+x-ms-middleware-request-id: 00000000-0000-0000-0000-000000000000
+x-azure-ref: 20261007T011355Z-1865b89bffft8xpnhC1PHXt83c0000000egg00000000mv9c
+x-cache: CONFIG_NOCACHE
+accept-ranges: bytes
+
