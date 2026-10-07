@@ -6,6 +6,26 @@ How every release ships:
 3. **GitHub re-runs everything on each push** (Actions, "Checks"), and probes the real museum APIs every morning, which the build workspace can't reach. A commit message containing `[live]` runs that probe immediately; every release commit uses it.
 4. **At most one small usability improvement per release,** listed here so you can veto it. Never a change to gestures, saved data, or anything you'd have to relearn without asking first.
 
+## 0.3.2-alpha (Oct 7, 2026)
+
+**Change requested by you: separate what you do from how well the app knows you.** A weak model should never cost you a level.
+
+**Rewards now come in three kinds**
+- **What you do** (Habits, Explorer, Atlas, Museums, Lineages, The Eye) and **levels**: decisions, movements, likes and passes only. Levels no longer require prediction accuracy, and they never go down from a model dip.
+- **Your pattern** (new family): Tried and True or Shape-Shifter, Patron or Juror, Slow Looker or Snap Judgment. Read from your own history, never the model; both ends of each trait earn a pin, and Portrait shows where you sit.
+- **You and the app** (new family): Called It (ten right in a row), Open Book, Enigma. The only pins that depend on the app's guesses; earned once, never taken back, never needed for a level.
+
+**How well we know you** (new block on Portrait): the app's own ladder, Stranger to Mind Reader, scored fairly. It compares how often you keep the works the app picked as matches against everything else, so exploration cards and a generous or picky yes-rate don't skew it. It can fall, and it says so in its own voice. "Called it" moved here. This is also the scoreboard for the coming recommendation work.
+
+**Under the hood**
+- Each decision now records how its card was picked (match, test, explore, opening hang, second look), and wall texts opened are counted. Older decisions don't have this, so the app's ladder starts at Stranger and needs about 20 new matches.
+- Your level is re-read once more; without the accuracy gate it may go up at your next decision.
+- The eye title's movement now comes from your own tallies, not the model's weights.
+- 46 pins (was 39). Salon Hang moved to Habits.
+
+**Checks:** 46 unit and backend tests (new: fair app scoring, levels ignore accuracy, pattern pins), 41 of 41 browser checks.
+**On your phone:** open Taste. Your level shows decisions and movements only; "How well we know you" says Stranger until about 20 new matches, then gives the two percentages.
+
 ## 0.3.1-alpha (Oct 7, 2026)
 
 **Change requested by you: levels for serious looking, demotion allowed.** You're the only user, so the ladder was re-tuned rather than preserved.

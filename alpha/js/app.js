@@ -7,7 +7,7 @@ import { TasteModel, features } from "./model.js";
 import { Deck, MAX_DEFERS } from "./deck.js";
 import { load, save, saveFailed, record, STORE_KEY, mergeSwipes, backupPayload, parseBackup, encodeCode, fromSalonSwipe, compact } from "./store.js";
 import { stats, levelFor, LEVELS, LEVEL_SCALE, profileFacts, templateNote } from "./rewards.js";
-import { BADGES, FAMILIES, TIERS, badgeStats, award, unsealedAt, pinState, closest, eyeTitle, pinSVG, ensureDefs, tierName, byId as badgeById } from "./badges.js";
+import { BADGES, FAMILIES, TIERS, APP_RUNGS, badgeStats, award, unsealedAt, pinState, closest, eyeTitle, pinSVG, ensureDefs, tierName, byId as badgeById } from "./badges.js";
 import * as api from "./sync.js";
 import { analyze } from "./vision.js";
 import { APP } from "./config.js";
@@ -241,6 +241,7 @@ function decide(v, vel) {
   model.record(predicted, v);
   const rec = record(state, a, v);
   if (predicted != null && v !== 0) rec.p = Math.round(predicted * 100) / 100;   // for "Called it"
+  rec.m = a._look ? "look" : a._seed ? "seed" : a._why || null;   // how the card was picked, so the app is scored fairly
   if (a._look) rec.look = a._look;
   markSeedSeen(a);
   model.learn(rec.f, v);
@@ -439,6 +440,7 @@ let sheetForDeck = false;
 function openSheet(a) {
   // Opened on the work you're judging: decide right from the wall text, by button or by swiping the panel.
   sheetForDeck = currentView === "look" && deck.queue[0] === a;
+  if (sheetForDeck) { state.counters = state.counters || {}; state.counters.wall = (state.counters.wall || 0) + 1; }
   $("#sheetActions").hidden = !sheetForDeck;
   $("#sheetHint").hidden = (state.sheetDecisions || 0) >= 3;
   const f = features(a), why = model.trained ? model.explain(f, 3) : [];
@@ -546,18 +548,32 @@ function renderTaste() {
     if (!last || last.title !== eye.title) { state.titles.push({ title: eye.title, t: Date.now() }); state.titles = state.titles.slice(-12); persist({ meta: true }); } }
   const earlier = (state.titles || []).slice(0, -1).reverse().find((x) => !eye || x.title !== eye.title);
   const traitPin = (tok) => BADGES.find((b) => b.tok === tok);
+  const app = bst.app, pct = (x) => `${Math.round(x * 100)}%`;
+  const pattern = [];
+  if (bst.steadiness != null) pattern.push(bst.steadiness >= 0.75 ? "Steady taste" : bst.steadiness <= 0.45 ? "Shifting taste" : "Evolving taste");
+  if (bst.decided >= 150) pattern.push(bst.keepRate >= 0.7 ? "Generous" : bst.keepRate <= 0.35 ? "Selective" : "Balanced");
+  if (bst.decided >= 150) pattern.push(bst.deliberation >= 0.2 ? "Slow looker" : bst.deliberation <= 0.03 ? "Snap judgments" : "Steady pace");
   const called = state.swipes.filter((x) => x.v !== 0 && typeof x.p === "number").slice(-10).map((x) => (x.p >= 0.5) === (x.v > 0));
   const portrait = `<section id="t-portrait" class="tsec">
     <p class="kicker">${eye ? "Your eye right now" : "Your eye"}</p>
     <h1 class="display">${esc(eye ? eye.title : "Still looking")}</h1>
     ${eye && eye.traits.length ? `<div class="traits">${eye.traits.map((tok) => { const b = traitPin(tok); return b ? `<button type="button" class="trait" data-pin="${b.id}">${pinSVG(b, 1, state.badges[`pin:${b.id}:1`] ? "earned" : "locked")}<span>${esc(b.name)}</span></button>` : ""; }).join("")}</div>` : ""}
     ${!eye ? `<p class="muted">Your eye gets a name after 25 decisions.</p>` : earlier ? `<p class="muted small">Before: ${esc(earlier.title)}</p>` : ""}
+    ${pattern.length ? `<p class="pattern">${pattern.map((x) => `<span>${esc(x)}</span>`).join("")}</p>` : ""}
     <div class="level">
       <p class="kicker">Level: <b>${esc(LEVELS[level].name)}</b></p>
       ${lv.next ? `<p class="small muted">To become a ${esc(lv.next.name)}:</p><ul class="needs">${lv.next.needs.map((n) => `<li class="${n.done ? "done" : ""}"><span>${n.done ? `Done: ${n.pct ? `${n.need}%+` : n.need} ${esc(n.label)}` : `${n.pct ? `${n.have}% of ${n.need}%` : `${n.have} of ${n.need}`} ${esc(n.label)}`}</span><span class="meter"><i style="width:${Math.round(clamp(n.have / n.need, 0, 1) * 100)}%"></i></span></li>`).join("")}</ul>` : `<p class="small muted">The top of the ladder. Keep looking; the notes keep coming.</p>`}
     </div>
-    <div class="tiles"><div><b>${st.decided}</b><span>judged</span></div><div><b>${Math.round(st.keepRate * 100)}%</b><span>kept</span></div><div><b>${st.accuracy == null ? "–" : Math.round(st.accuracy * 100) + "%"}</b><span>predicted right</span></div></div>
-    ${called.length >= 5 ? `<p class="kicker">Called it: ${called.filter(Boolean).length} of your last ${called.length}</p><div class="callit" aria-hidden="true">${called.map((ok) => `<i class="${ok ? "hit" : ""}"></i>`).join("")}</div>` : ""}
+    <div class="tiles"><div><b>${st.decided}</b><span>judged</span></div><div><b>${Math.round(st.keepRate * 100)}%</b><span>kept</span></div><div><b>${st.range}</b><span>movements</span></div></div>
+    <div class="appknows" id="t-app">
+      <h2>How well we know you</h2>
+      <div class="rungs" aria-label="The app's standing: ${esc(app.name)}">${APP_RUNGS.map((r, i) => `<span class="${i <= app.rung ? "on" : ""} ${i === app.rung ? "cur" : ""}">${esc(r)}</span>`).join("")}</div>
+      ${app.lift == null
+        ? `<p class="small">We start scoring ourselves after 20 works we picked as matches for you (${app.n} so far).</p>`
+        : `<p class="small">When we pick a match, you keep it <b>${pct(app.matchKeep)}</b> of the time, against <b>${pct(app.otherKeep)}</b> for everything else.${app.slipping ? " We've slipped lately: either your taste is moving or we're behind. Keep going and we'll catch up." : ""}</p>`}
+      ${called.length >= 5 ? `<p class="kicker">Called it: ${called.filter(Boolean).length} of your last ${called.length}</p><div class="callit" aria-hidden="true">${called.map((ok) => `<i class="${ok ? "hit" : ""}"></i>`).join("")}</div>` : ""}
+      <p class="muted small">This is the app's score, not yours. It never affects your level or takes back a pin.</p>
+    </div>
     <div class="notes">
       <div class="notes-head"><h2>Curator's notes</h2>
         <label class="tone">Tone <select id="toneSel">${Object.entries(TONES).map(([k, t]) => `<option value="${k}" ${state.settings.tone === k ? "selected" : ""}>${t.label}</option>`).join("")}</select></label></div>

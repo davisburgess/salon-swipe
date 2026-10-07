@@ -194,7 +194,7 @@ const store = (p) => pp(p, () => JSON.parse(localStorage.getItem("pp-alpha-v1"))
   });
   await check("taste.badges", async () => {
     const total = await p.locator(".cabinet .pin").count(), n = await p.locator(".cabinet .pin.earned").count();
-    expect(total === 39, `${total} pins in the cabinet`); expect(n >= 1, "no pins shown as earned");
+    expect(total === 46, `${total} pins in the cabinet`); expect(n >= 1, "no pins shown as earned");
     expect(Object.keys((await store(p)).badges).some((k) => k === "pin:first-love:1"), "First Love not recorded");
     await p.locator(".cabinet .pin.earned").first().click(); await p.waitForSelector("#modal:not([hidden]) .walllabel");
     expect((await p.textContent("#modalBody .walllabel")).length > 10, "pin detail has no wall label");
@@ -207,6 +207,8 @@ const store = (p) => pp(p, () => JSON.parse(localStorage.getItem("pp-alpha-v1"))
     await p.locator("#view-taste").evaluate((el) => el.scrollTo(0, 0));
     const title = await p.textContent("#t-portrait h1"); expect(/^The /.test(title), `eye title: ${title}`);
     expect(await p.locator(".callit i").count() >= 5, "no Called it strip");
+    expect(/app's score, not yours/.test(await p.textContent("#t-app")), "app understanding block missing");
+    expect(!/predicted right/.test(await p.textContent("#t-portrait .tiles")), "prediction still shown as your stat");
     await p.screenshot({ path: `${OUT}/portrait.png` });
     return title;
   });
@@ -330,7 +332,7 @@ await check("taste.recalibrate", async () => {
     localStorage.clear(); localStorage.setItem("pp-alpha-v1", JSON.stringify({ onboarded: true, swipes, level: 4, badges: { "pin:_init": 1 } }));
   });
   await p.reload(); await p.waitForTimeout(1600);
-  let s = await store(p); expect(s.level === 1 && s.levelScale === 2, `level ${s.level} after recalibration`);
+  let s = await store(p); expect(s.level === 1 && s.levelScale === 3, `level ${s.level} after recalibration`);
   expect(/recalibrated/.test(await p.textContent("#toast").catch(() => "")), "no recalibration notice");
   expect(/Docent/.test(await p.textContent("#levelChip")), "level chip not updated");
   await p.reload(); await p.waitForTimeout(800); s = await store(p); expect(s.level === 1, "recalibrated twice");

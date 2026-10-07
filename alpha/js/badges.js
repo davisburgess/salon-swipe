@@ -1,4 +1,7 @@
-// The badge cabinet: 39 enamel pins in eight families.
+// The badge cabinet: 46 enamel pins in nine families, in three kinds:
+//   what you do (Habits, Explorer, Atlas, Museums, Lineages, The Eye) never depends on the app's guesses;
+//   Your pattern describes you from your own history (both ends of each trait earn a pin);
+//   You and the app is the only place the model's predictions count, and those pins are earned once and never gate anything.
 // Every rule is computed from your saved decisions, so history counts and nothing has to be logged twice.
 // Tiered pins go bronze, silver, gilt, lapis. Higher tiers are earned whenever you reach them but stay sealed
 // until your level catches up: silver at Collector, gilt at Curator, lapis at Connoisseur.
@@ -10,13 +13,14 @@ export const TIERS = [null, { key: "b", name: "Bronze", level: 0 }, { key: "s", 
 export const LEVEL_NAMES = ["Visitor", "Docent", "Collector", "Curator", "Connoisseur", "Director"];
 
 export const FAMILIES = {
-  firsts:   { name: "Firsts", enamel: "#7b2d2b", blurb: "The first moves that show you're actually looking." },
+  habits:   { name: "Habits", enamel: "#7b2d2b", blurb: "What you do, counted. Nothing here depends on the app's guesses." },
   explorer: { name: "Explorer", enamel: "#24427a", blurb: "Range: movements, centuries, the far ends of history." },
   atlas:    { name: "Atlas", enamel: "#2c6b5f", blurb: "Where the art you see was made." },
   museums:  { name: "Museums", enamel: "#2a2d33", blurb: "Seven collections, each with a personality." },
   lineage:  { name: "Lineages", enamel: "#5a2a55", blurb: "Love both ends of a real art-historical connection." },
   eye:      { name: "The Eye", enamel: "#8f6418", blurb: "Traits of your looking, after 40 decisions, when your keeps clearly lean one way." },
-  collector:{ name: "Collector", enamel: "#34495e", blurb: "How much you keep, and how well the app reads you." },
+  pattern:  { name: "Your pattern", enamel: "#3c5a4a", blurb: "Who you are as a looker, read from your own history. Both ends of each trait earn a pin." },
+  together: { name: "You and the app", enamel: "#34495e", blurb: "The only pins that depend on the app's guesses. Earned once, never taken back, never needed for a level." },
   secret:   { name: "After hours", enamel: "#121214", blurb: "Secret until earned." },
 };
 
@@ -44,7 +48,7 @@ export function badgeStats(state, model) {
   const st = { decided: 0, loves: 0, keeps: 0, passes: 0, why: 0, styles: new Set(), cents: new Set(), countries: new Set(), keptContinents: new Set(),
     lovedCountries: new Set(), srcAny: {}, lovesBySrc: {}, onViewKeeps: 0, secondLook: 0, deepTime: false, wetPaint: false, bookends: false,
     sides: {}, runMax: 0, perDay: {}, afterHours: false, hotTake: false, lovesByArtist: {}, changeOfHeart: false,
-    undo: (state.counters && state.counters.undo) || 0, accuracy: model ? model.accuracy : null, eye: {} };
+    undo: (state.counters && state.counters.undo) || 0, accuracy: model ? model.accuracy : null, eye: {}, total: sw.length };
   const passesByStyle = {}, keepsWindow = [];
   const oldest = new Date().getFullYear() - 2000;
   let run = 0;
@@ -78,6 +82,23 @@ export function badgeStats(state, model) {
     if (s.t && v !== 0) { const d = new Date(s.t); const day = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; st.perDay[day] = (st.perDay[day] || 0) + 1; if (d.getHours() < 4) st.afterHours = true; }
   }
   st.range = st.styles.size; st.centuries = st.cents.size; st.nCountries = st.countries.size;
+  st.keepRate = st.decided ? st.keeps / st.decided : 0;
+  st.app = understanding(state);
+  // Called it: the longest run of decisions the app guessed right.
+  let call = 0; st.callRun = 0;
+  for (const s of sw) { if (s.v === 0 || typeof s.p !== "number") continue; call = (s.p >= 0.5) === (s.v > 0) ? call + 1 : 0; st.callRun = Math.max(st.callRun, call); }
+  // Steady or shifting: what you kept early (after the opening hang) against your last 100 decisions, by movement.
+  const dec = sw.filter((s) => s.v !== 0), early = dec.slice(39, -100), late = dec.slice(-100);
+  const prof = (list) => { const m = {}; for (const s of list) if (s.v > 0) for (const t of s.f || []) if (t.startsWith("style|")) m[t] = (m[t] || 0) + s.v; return m; };
+  if (early.length >= 60 && late.length === 100) {
+    const a = prof(early), b = prof(late), keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+    let dot = 0, na = 0, nb = 0; for (const k of keys) { const x = a[k] || 0, y = b[k] || 0; dot += x * y; na += x * x; nb += y * y; }
+    st.steadiness = na && nb ? dot / Math.sqrt(na * nb) : null;
+  } else st.steadiness = null;
+  // Deliberate or decisive: second looks, undecided works and wall texts opened, per decision.
+  st.deliberation = st.decided ? (st.secondLook + (st.total - st.decided) + ((state.counters && state.counters.wall) || 0)) / st.decided : 0;
+  // Your favorite movements by your own tallies (Loves count double), for the title.
+  st.styleScore = {}; for (const s of sw) for (const t of s.f || []) if (t.startsWith("style|")) { const k = t.slice(6), o = (st.styleScore[k] ||= { score: 0, seen: 0 }); o.seen++; o.score += s.v === 2 ? 2 : s.v === 1 ? 1 : s.v === -1 ? -1 : 0; }
   st.sources = Object.values(st.srcAny).filter((n) => n > 0).length;
   st.maxDay = Math.max(0, ...Object.values(st.perDay));
   st.topSrc = Object.entries(st.lovesBySrc).sort((a, b) => b[1] - a[1])[0] || null;
@@ -90,6 +111,25 @@ export function badgeStats(state, model) {
   }
   return st;
 }
+/* ---------- how well the app knows you ----------
+   Scored fairly: of the works the app picked as a match for you, how many you kept, against how many you keep of
+   everything else (exploration, tests, the opening hang). That gap is the app's skill, and it is the app's score:
+   it can fall, and it never touches your level. */
+export const APP_RUNGS = ["Stranger", "Acquaintance", "Regular", "Confidant", "Mind Reader"];
+export function understanding(state, win = 60) {
+  const dec = (state.swipes || []).filter((s) => s.v !== 0);
+  const match = dec.filter((s) => s.m === "match"), other = dec.filter((s) => s.m !== "match").slice(-150);
+  const keep = (l) => (l.length ? l.filter((s) => s.v > 0).length / l.length : 0);
+  const recent = match.slice(-win), before = match.slice(-2 * win, -win);
+  const out = { n: match.length, matchKeep: keep(recent), otherKeep: keep(other), lift: null, prevLift: null, rung: 0 };
+  if (recent.length < 20 || other.length < 20) return { ...out, name: APP_RUNGS[0] };
+  out.lift = out.matchKeep - out.otherKeep;
+  if (before.length >= 20) out.prevLift = keep(before) - out.otherKeep;
+  out.rung = out.lift >= 0.18 ? 4 : out.lift >= 0.10 ? 3 : out.lift >= 0.03 ? 2 : 1;
+  out.slipping = out.prevLift != null && out.lift < out.prevLift - 0.08;
+  return { ...out, name: APP_RUNGS[out.rung] };
+}
+
 const eyeTrait = (tok) => (st) => st.decided >= 40 && st.eye[tok] && st.eye[tok].lift >= 0.12;
 const both = (a, b) => (st) => !!(st.sides[a] && st.sides[b]);
 const halves = (a, b, la, lb) => (st) => ({ have: (st.sides[a] ? 1 : 0) + (st.sides[b] ? 1 : 0), need: 2,
@@ -99,11 +139,13 @@ const halves = (a, b, la, lb) => (st) => ({ have: (st.sides[a] ? 1 : 0) + (st.si
    value(st) -> number for tiered pins (tiers = thresholds), or test(st) -> bool for single pins.
    progress(st) -> { have, need, hint } shows a bar for single pins that can show one. */
 export const BADGES = [
-  { id: "first-love", fam: "firsts", name: "First Love", em: "heart", how: "Love a work.", fact: "Every collection starts with one work you couldn't walk past.", test: (s) => s.loves >= 1 },
-  { id: "second-thoughts", fam: "firsts", name: "Second Thoughts", em: "hourglass", how: "Decide on a work you'd put off.", fact: "Slow looking has its own holiday: Slow Art Day, held each April.", test: (s) => s.secondLook >= 1 },
-  { id: "artists-statement", fam: "firsts", name: "Artist's Statement", em: "quill", how: "Give reasons for your Loves.", unit: "Loves with reasons", tiers: [10, 40, 120, 300], value: (s) => s.why, fact: "Shorter and clearer than most artist's statements." },
-  { id: "refuses", fam: "firsts", name: "Salon des Refusés", em: "refuse", how: "Pass on works.", unit: "passes", tiers: [100, 300, 750, 1500], value: (s) => s.passes, fact: "In 1863 Napoleon III let the Paris Salon's rejects show next door. Manet's Le Déjeuner sur l'herbe stole the show." },
-  { id: "pentimento", fam: "firsts", name: "Pentimento", em: "pentimento", how: "Change your mind 10 times with Undo.", progress: (s) => ({ have: s.undo, need: 10 }), test: (s) => s.undo >= 10, fact: "Italian for 'repentance': an earlier idea showing through the paint. X-rays find them under many Old Masters." },
+  { id: "first-love", fam: "habits", name: "First Love", em: "heart", how: "Love a work.", fact: "Every collection starts with one work you couldn't walk past.", test: (s) => s.loves >= 1 },
+  { id: "second-thoughts", fam: "habits", name: "Second Thoughts", em: "hourglass", how: "Decide on a work you'd put off.", fact: "Slow looking has its own holiday: Slow Art Day, held each April.", test: (s) => s.secondLook >= 1 },
+  { id: "artists-statement", fam: "habits", name: "Artist's Statement", em: "quill", how: "Give reasons for your Loves.", unit: "Loves with reasons", tiers: [10, 40, 120, 300], value: (s) => s.why, fact: "Shorter and clearer than most artist's statements." },
+  { id: "refuses", fam: "habits", name: "Salon des Refusés", em: "refuse", how: "Pass on works.", unit: "passes", tiers: [100, 300, 750, 1500], value: (s) => s.passes, fact: "In 1863 Napoleon III let the Paris Salon's rejects show next door. Manet's Le Déjeuner sur l'herbe stole the show." },
+  { id: "pentimento", fam: "habits", name: "Pentimento", em: "pentimento", how: "Change your mind 10 times with Undo.", progress: (s) => ({ have: s.undo, need: 10 }), test: (s) => s.undo >= 10, fact: "Italian for 'repentance': an earlier idea showing through the paint. X-rays find them under many Old Masters." },
+
+  { id: "salon-hang", fam: "habits", name: "Salon Hang", em: "salon", how: "Keep works.", unit: "keeps", tiers: [50, 150, 400, 1000], value: (s) => s.keeps, fact: "The Paris Salon hung paintings floor to ceiling. Your wall is getting there." },
 
   { id: "grand-tour", fam: "explorer", name: "Grand Tour", em: "compass", how: "Judge works from many movements.", unit: "movements", tiers: [10, 25, 39, 60], value: (s) => s.range, fact: "Young British aristocrats spent months touring Italy's art in the 1700s. You're doing it with a thumb." },
   { id: "time-machine", fam: "explorer", name: "Time Machine", em: "clock", how: "Judge works from many centuries.", unit: "centuries", tiers: [6, 10, 15, 20], value: (s) => s.centuries, fact: "Five thousand years, give or take, in a single deck." },
@@ -137,9 +179,16 @@ export const BADGES = [
   { id: "warm-blooded", fam: "eye", name: "Warm Blooded", em: "flame", how: "Keep warm-toned works more than most.", test: eyeTrait("warm|Warm"), tok: "warm|Warm", fact: "Reds, ochres and gold leaf. You run warm." },
   { id: "cool-customer", fam: "eye", name: "Cool Customer", em: "snow", how: "Keep cool-toned works more than most.", test: eyeTrait("warm|Cool"), tok: "warm|Cool", fact: "Blues and greys. Unflappable." },
 
-  { id: "salon-hang", fam: "collector", name: "Salon Hang", em: "salon", how: "Keep works.", unit: "keeps", tiers: [50, 150, 400, 1000], value: (s) => s.keeps, fact: "The Paris Salon hung paintings floor to ceiling. Your wall is getting there." },
-  { id: "open-book", fam: "collector", name: "Open Book", em: "book", how: "The app predicts you 75% of the time, after 100 decisions.", test: (s) => s.decided >= 100 && (s.accuracy ?? 0) >= 0.75, fact: "We can read you like a wall label." },
-  { id: "enigma", fam: "collector", name: "Enigma", em: "enigma", how: "Still under 55% predictable after 150 decisions.", test: (s) => s.decided >= 150 && s.accuracy != null && s.accuracy < 0.55, fact: "We've stopped trying to predict you. Congratulations." },
+  { id: "tried-and-true", fam: "pattern", name: "Tried and True", em: "anchor", how: "After 200 decisions, what you keep now matches what you kept early on.", test: (s) => s.steadiness != null && s.steadiness >= 0.75, fact: "Some collectors bought the same painter for fifty years. You'd understand them." },
+  { id: "shape-shifter", fam: "pattern", name: "Shape-Shifter", em: "shuffle", how: "After 200 decisions, what you keep now differs from what you kept early on.", test: (s) => s.steadiness != null && s.steadiness <= 0.45, fact: "Picasso went through Blue, Rose, Cubist and Neoclassical periods. You're in good company." },
+  { id: "patron", fam: "pattern", name: "Patron", em: "gift", how: "Keep 70% or more of what you see, after 150 decisions.", test: (s) => s.decided >= 150 && s.keepRate >= 0.7, fact: "Generous with your yes. The Medici would approve." },
+  { id: "juror", fam: "pattern", name: "Juror", em: "gavel", how: "Keep 35% or less of what you see, after 150 decisions.", test: (s) => s.decided >= 150 && s.keepRate <= 0.35, fact: "In 1863 the Salon jury turned away about 3,000 works. You'd have fit right in." },
+  { id: "slow-looker", fam: "pattern", name: "Slow Looker", em: "magnifier", how: "Often read the wall text, take a second look or stay undecided, after 150 decisions.", test: (s) => s.decided >= 150 && s.deliberation >= 0.2, fact: "A 2001 study at the Met clocked visitors at a median of 17 seconds per painting. Not you." },
+  { id: "snap-judgment", fam: "pattern", name: "Snap Judgment", em: "bolt", how: "Rarely need the wall text or a second look, after 150 decisions.", test: (s) => s.decided >= 150 && s.deliberation <= 0.03, fact: "You know it when you see it." },
+
+  { id: "called-it", fam: "together", name: "Called It", em: "target", how: "The app guesses ten of your decisions in a row.", progress: (s) => ({ have: s.callRun, need: 10 }), test: (s) => s.callRun >= 10, fact: "Ten for ten. Either the app knows you, or you're very predictable. Probably both." },
+  { id: "open-book", fam: "together", name: "Open Book", em: "book", how: "Keep the app's matches at least 20 points more often than everything else, over 40 matches.", test: (s) => s.app.n >= 40 && s.app.lift != null && s.app.lift >= 0.2, fact: "We can read you like a wall label." },
+  { id: "enigma", fam: "together", name: "Enigma", em: "enigma", how: "After 200 decisions, the app's matches still do no better than anything else.", test: (s) => s.decided >= 200 && s.app.n >= 40 && s.app.lift != null && s.app.lift <= 0.02, fact: "The app has stopped trying to predict you. Consider it a compliment." },
 
   { id: "stendhal", fam: "secret", name: "Stendhal Syndrome", em: "stendhal", how: "Love five works in a row.", test: (s) => s.runMax >= 5, fact: "Stendhal described nearly fainting from beauty in Florence in 1817. A psychiatrist named the syndrome after him in 1979." },
   { id: "museum-feet", fam: "secret", name: "Museum Feet", em: "feet", how: "Make 100 decisions in one day.", test: (s) => s.maxDay >= 100, fact: "The curator Benjamin Ives Gilman named 'museum fatigue' in 1916. Sit down." },
@@ -191,7 +240,7 @@ export function pinState(state, b, st, level) {
 
 // The three pins closest to their next step, for the "Closest next" shelf.
 export function closest(state, st, level, k = 3) {
-  return BADGES.filter((b) => b.fam !== "secret" && b.fam !== "eye")
+  return BADGES.filter((b) => b.fam !== "secret" && b.fam !== "eye" && b.fam !== "pattern")
     .map((b) => ({ b, ps: pinState(state, b, st, level) }))
     .filter(({ ps }) => ps.next && ps.next.need > 0 && ps.next.have < ps.next.need)
     .map((x) => ({ ...x, frac: x.ps.next.have / x.ps.next.need }))
@@ -211,7 +260,7 @@ export function eyeTitle(st, model) {
   if (st.decided < 25) return null;
   const traits = Object.entries(st.eye).filter(([, e]) => e.lift >= 0.06).sort((a, b) => b[1].lift - a[1].lift);
   const adj = traits.length ? ADJ[traits[0][0]] : null;
-  const styles = model ? model.leaning("style", 8, 3).filter((x) => x.weight > 0) : [];
+  const styles = Object.entries(st.styleScore || {}).filter(([, o]) => o.seen >= 3 && o.score > 0).sort((a, b) => b[1].score / b[1].seen - a[1].score / a[1].seen).map(([value]) => ({ value }));
   let noun = null;
   for (const s of styles) { const hit = NOUNS.find(([re]) => re.test(s.value.toLowerCase())); if (hit) { noun = hit[1]; break; } }
   if (!noun) noun = "Eclectic";
@@ -260,6 +309,13 @@ const E = {
   hot: "M4 4.5h16v11H9.5L4 20zM12 7.5v4.5M12 14h.01",
   mail: "M3 6h18v12H3zM3 6l9 7 9-7",
   change: "M4 12a8 8 0 0 1 13.7-5.6L20 4v6h-6l2.2-2.2A5.5 5.5 0 0 0 6.5 12M20 12a8 8 0 0 1-13.7 5.6L4 20v-6h6l-2.2 2.2A5.5 5.5 0 0 0 17.5 12",
+  anchor: "M12 4a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM12 8v13M8 11h8M4 14c0 4 4 7 8 7s8-3 8-7M4 14l-1.5 1.5M20 14l1.5 1.5",
+  shuffle: "M3 7h4c4 0 6 10 10 10h4M3 17h4c1.6 0 2.8-1.6 3.8-3.5M14 9.5c.9-1.4 1.9-2.5 3-2.5h4M18 4l3 3-3 3M18 14l3 3-3 3",
+  gift: "M4 10h16v4H4zM5 14h14v7H5zM12 10v11M12 10c-2-4-6-4-6-1.5S10 10 12 10zM12 10c2-4 6-4 6-1.5S14 10 12 10z",
+  gavel: "M13.5 3.5l7 7M11 6l7 7M12.5 4.75l-5 5 3.5 3.5 5-5M9 11.5l-6 6 2.5 2.5 6-6M14 21h7",
+  magnifier: "M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM15.5 15.5L21 21",
+  bolt: "M13 2.5L5 13.5h6l-1 8 8-11h-6z",
+  target: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10zM12 11a1 1 0 1 0 0 2 1 1 0 0 0 0-2z",
   question: "M9 9a3 3 0 1 1 4.2 2.8c-.9.4-1.2 1-1.2 2.2M12 17.5h.01",
 };
 

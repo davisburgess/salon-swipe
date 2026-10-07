@@ -329,7 +329,7 @@ test("Met search uses the paginated v1.1 endpoint (v1 was retired Oct 1, 2026)",
 });
 
 /* ---------- 0.3: badge cabinet, place lexicon ---------- */
-import { BADGES, badgeStats, award, pinState, unsealedAt, reached, byId, eyeTitle, closest } from "../alpha/js/badges.js";
+import { BADGES, badgeStats, award, pinState, unsealedAt, reached, byId, eyeTitle, closest, understanding } from "../alpha/js/badges.js";
 import { placeOf } from "../alpha/js/geo.js";
 const mkSw = (i, v, a = {}, extra = {}) => ({ uid: `t:${i}`, v, t: 1_700_000_000_000 + i * 60_000, f: [a.movement && `style|${a.movement}`, a.year != null && `cent|c${Math.floor(a.year / 100)}`].filter(Boolean), a: { uid: `t:${i}`, title: `W${i}`, ...a }, ...extra });
 
@@ -341,8 +341,8 @@ test("place lexicon maps how museums describe place to modern countries", () => 
   assert.deepEqual(placeOf("West Africa"), { iso: null, continent: "AF" }, "continent-only places count for continents, not countries");
 });
 
-test("cabinet: 39 pins, unique ids, every rule runs on an empty history", () => {
-  assert.equal(BADGES.length, 39); assert.equal(new Set(BADGES.map((b) => b.id)).size, 39);
+test("cabinet: 46 pins, unique ids, every rule runs on an empty history", () => {
+  assert.equal(BADGES.length, 46); assert.equal(new Set(BADGES.map((b) => b.id)).size, 46);
   const st = badgeStats({ swipes: [], badges: {} }, null);
   for (const b of BADGES) assert.equal(reached(b, st), 0, b.id);
 });
@@ -379,7 +379,7 @@ test("lineages, secrets and dates come from real-looking history", () => {
 test("eye traits need a clear lean and enough looking; the title follows", () => {
   const counts = new Map([["light|Dark", { p: 30, n: 4, c: 24 }], ["sat|Vivid", { p: 6, n: 14, c: 17 }]]);
   const model = { counts, accuracy: 0.7, leaning: () => [{ value: "Dutch Golden Age", weight: 0.8 }] };
-  const swipes = Array.from({ length: 60 }, (_, i) => mkSw(i, i % 2 ? 1 : -1));
+  const swipes = Array.from({ length: 60 }, (_, i) => mkSw(i, i % 3 ? 1 : -1, { movement: i % 3 ? "Dutch Golden Age" : "Rococo" }));   // keeps 2 in 3
   const st = badgeStats({ swipes, badges: {} }, model);
   assert.ok(reached(byId.tenebrist, st) > 0); assert.equal(reached(byId["wild-beast"], st), 0);
   assert.equal(eyeTitle(st, model).title, "The Moody Old Master");
@@ -392,4 +392,33 @@ test("offline shell lists every module the app imports", () => {
     for (const m of readFileSync(new URL(f, dir), "utf8").matchAll(/from "\.\/([\w-]+\.js)"/g)) queue.push(m[1]); }
   const sw = readFileSync(new URL("../alpha/sw.js", import.meta.url), "utf8");
   for (const f of seen) assert.ok(sw.includes(`"./js/${f}"`), `sw.js SHELL is missing js/${f}`);
+});
+
+test("the app is scored fairly: its matches against everything else, never your level", () => {
+  const sw = [];
+  for (let i = 0; i < 60; i++) sw.push(mkSw(i, i % 10 < 8 ? 1 : -1, {}, { m: "match" }));          // keeps 80% of matches
+  for (let i = 60; i < 120; i++) sw.push(mkSw(i, i % 2 ? 1 : -1, {}, { m: i % 3 ? "explore" : "unsure" }));   // 50% of the rest
+  const u = understanding({ swipes: sw });
+  assert.equal(Math.round(u.matchKeep * 100), 80); assert.equal(Math.round(u.otherKeep * 100), 50);
+  assert.equal(u.name, "Mind Reader", `lift ${u.lift}`);
+  assert.equal(understanding({ swipes: sw.slice(60) }).name, "Stranger", "no score without matches");
+  // A generous user doesn't flatter the app: keeping everything gives no lift.
+  const generous = sw.map((x) => ({ ...x, v: 1 }));
+  assert.equal(understanding({ swipes: generous }).rung, 1);
+});
+
+test("levels ignore prediction accuracy entirely", () => {
+  const st = { decided: 600, range: 30, accuracy: 0.3 };
+  assert.equal(levelFor(st).name, "Curator", "a weak model can't hold you back");
+  assert.ok(levelFor(st).next.needs.every((n) => !/accuracy/.test(n.label)));
+});
+
+test("pattern pins: both ends of a trait earn a pin", () => {
+  const mkRun = (n, keepEvery) => Array.from({ length: n }, (_, i) => mkSw(i, i % keepEvery === 0 ? 1 : -1, { movement: i < n - 100 ? "Baroque" : "Cubism" }));
+  const shifting = badgeStats({ swipes: mkRun(240, 4), badges: {} }, null);
+  assert.ok(reached(byId["shape-shifter"], shifting) && !reached(byId["tried-and-true"], shifting), `steadiness ${shifting.steadiness}`);
+  assert.ok(reached(byId.juror, shifting), "keeps 25%");
+  const steady = badgeStats({ swipes: Array.from({ length: 240 }, (_, i) => mkSw(i, 1, { movement: i % 2 ? "Baroque" : "Rococo" })), badges: {} }, null);
+  assert.ok(reached(byId["tried-and-true"], steady) && reached(byId.patron, steady));
+  assert.ok(reached(byId["snap-judgment"], steady), "never deferred or read a wall text");
 });
