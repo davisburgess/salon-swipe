@@ -1,0 +1,38 @@
+# Fetches real sample responses (and CORS headers) from candidate art APIs and commits them,
+# so adapters are built and tested against real data. Run manually or by editing tests/probe/targets.txt.
+name: Probe art APIs
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["tests/probe/targets.txt", ".github/workflows/probe.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch samples
+        run: |
+          mkdir -p tests/fixtures/live
+          ORIGIN="https://davisburgess.github.io"
+          UA="PicturePlane/0.1 (https://github.com/davisburgess/salon-swipe)"
+          while IFS='|' read -r name accept url; do
+            [ -z "$name" ] && continue; case "$name" in \#*) continue;; esac
+            echo "== $name"
+            curl -sS -L --max-time 40 -A "$UA" -H "Origin: $ORIGIN" -H "Accept: $accept" \
+              -D "tests/fixtures/live/$name.headers" -o "tests/fixtures/live/$name.body" "$url" || echo "curl failed" > "tests/fixtures/live/$name.err"
+            head -c 300 "tests/fixtures/live/$name.body"; echo
+            grep -i -E "^(HTTP/|access-control-allow-origin|content-type)" "tests/fixtures/live/$name.headers" || true
+          done < tests/probe/targets.txt
+      - name: Commit samples
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/fixtures/live
+          git commit -m "Probe: real API samples" || exit 0
+          git push

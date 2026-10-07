@@ -1,0 +1,14 @@
+# name|accept|url
+smk|application/json|https://api.smk.dk/api/v1/art/search/?keys=*&offset=0&rows=3&filters=%5Bhas_image:true%5D,%5Bpublic_domain:true%5D
+smk_monet|application/json|https://api.smk.dk/api/v1/art/search/?keys=Impressionism&offset=0&rows=3&filters=%5Bhas_image:true%5D,%5Bpublic_domain:true%5D
+vam|application/json|https://api.vam.ac.uk/v2/objects/search?q=landscape%20painting&images_exist=1&page_size=3
+wikidata|application/sparql-results+json|https://query.wikidata.org/sparql?format=json&query=SELECT%20%3Fitem%20%3FitemLabel%20%3Fimage%20%3FcreatorLabel%20%3Finception%20%3FmovementLabel%20%3FcollectionLabel%20%3FcountryLabel%20%3Fheight%20%3Fwidth%20WHERE%20%7B%0A%20%20%3Fitem%20wdt%3AP31%20wd%3AQ3305213%3B%20wdt%3AP18%20%3Fimage%3B%20wdt%3AP170%20%3Fcreator%3B%20wdt%3AP135%20%3Fmovement.%0A%20%20%3Fcreator%20wdt%3AP570%20%3Fdied.%20FILTER%28YEAR%28%3Fdied%29%20%3C%201955%29%0A%20%20%3Fmovement%20rdfs%3Alabel%20%22Impressionism%22%40en.%0A%20%20OPTIONAL%20%7B%20%3Fitem%20wdt%3AP571%20%3Finception.%20%7D%20OPTIONAL%20%7B%20%3Fitem%20wdt%3AP195%20%3Fcollection.%20%7D%20OPTIONAL%20%7B%20%3Fitem%20wdt%3AP495%20%3Fcountry.%20%7D%0A%20%20OPTIONAL%20%7B%20%3Fitem%20wdt%3AP2048%20%3Fheight.%20%7D%20OPTIONAL%20%7B%20%3Fitem%20wdt%3AP2049%20%3Fwidth.%20%7D%0A%20%20SERVICE%20wikibase%3Alabel%20%7B%20bd%3AserviceParam%20wikibase%3Alanguage%20%22en%22.%20%7D%0A%7D%20LIMIT%205
+rijks_search|application/json|https://data.rijksmuseum.nl/search/collection?type=painting&imageAvailable=true
+rijks_object|application/ld+json|https://id.rijksmuseum.nl/200100988
+rijks_object_la|application/json|https://data.rijksmuseum.nl/200100988?_profile=la&_mediatype=application/ld%2Bjson
+aic_cors|application/json|https://api.artic.edu/api/v1/artworks/search?limit=1&fields=id
+met_cors|application/json|https://collectionapi.metmuseum.org/public/collection/v1/objects/436535
+cma_cors|application/json|https://openaccess-api.clevelandart.org/api/artworks/?limit=1
+nga_iiif|image/jpeg|https://api.nga.gov/iiif/00007f61-4922-417b-8f27-893ea328206c/full/!200,200/0/default.jpg
+harvard|application/json|https://api.harvardartmuseums.org/object?size=1
+europeana|application/json|https://api.europeana.eu/record/v2/search.json?query=painting&reusability=open&rows=2&wskey=api2demo
