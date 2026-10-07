@@ -6,6 +6,27 @@ How every release ships:
 3. **GitHub re-runs everything on each push** (Actions, "Checks"), and probes the real museum APIs every morning, which the build workspace can't reach. A commit message containing `[live]` runs that probe immediately; every release commit uses it.
 4. **At most one small usability improvement per release,** listed here so you can veto it. Never a change to gestures, saved data, or anything you'd have to relearn without asking first.
 
+## 0.3.1-alpha (Oct 7, 2026)
+
+**Change requested by you: levels for serious looking, demotion allowed.** You're the only user, so the ladder was re-tuned rather than preserved.
+
+| Level | Decisions | Movements | Predicted right |
+|---|---|---|---|
+| Visitor | 0 | 0 | |
+| Docent | 40 | 6 | |
+| Collector | 150 | 14 | 60% |
+| Curator | 500 | 24 | 65% |
+| Connoisseur | 1,200 | 32 | 70% |
+| Director | 2,500 | 40 | 72% |
+
+- On first open, your level is re-read from your history once. If it drops, a notice says so, and pin tiers above your new level re-seal until you climb back. Reaching each level again brings its note and its broken seals.
+- After that, accuracy only gates promotion: a bad streak never demotes you.
+- Seals follow the new ladder: silver at Collector (150), gilt at Curator (500), lapis at Connoisseur (1,200).
+- **Before real launch:** lock the ladder, so other users never get demoted.
+
+**Checks:** 43 unit and backend tests, 41 of 41 browser checks (new: taste.recalibrate).
+**On your phone:** open the app and check the level chip and the notice; then open Taste, Badges to see which tiers re-sealed.
+
 ## 0.3.0-alpha (Oct 7, 2026)
 
 **Change requested by you: a Taste screen worth exploring.** First of three releases (then Museums, then the Atlas map).

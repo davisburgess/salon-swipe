@@ -206,7 +206,7 @@ test("levels need range and accuracy, not just volume", () => {
   assert.equal(s.range, 1);
   assert.equal(levelFor(s).name, "Visitor", "120 swipes of one movement shouldn't level up");
   const st2 = blank(); const m2 = new TasteModel();
-  for (let i = 0; i < 30; i++) { const r = record(st2, mk(i, { movement: `Style ${i % 6}` }), 1); m2.learn(r.f, r.v); }
+  for (let i = 0; i < 45; i++) { const r = record(st2, mk(i, { movement: `Style ${i % 8}` }), 1); m2.learn(r.f, r.v); }
   assert.equal(levelFor(stats(st2, m2)).name, "Docent");
 });
 

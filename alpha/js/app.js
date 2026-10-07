@@ -6,7 +6,7 @@ import { search, details, isAvailable, health as srcHealth, MUSEUMS } from "./so
 import { TasteModel, features } from "./model.js";
 import { Deck, MAX_DEFERS } from "./deck.js";
 import { load, save, saveFailed, record, STORE_KEY, mergeSwipes, backupPayload, parseBackup, encodeCode, fromSalonSwipe, compact } from "./store.js";
-import { stats, levelFor, LEVELS, profileFacts, templateNote } from "./rewards.js";
+import { stats, levelFor, LEVELS, LEVEL_SCALE, profileFacts, templateNote } from "./rewards.js";
 import { BADGES, FAMILIES, TIERS, badgeStats, award, unsealedAt, pinState, closest, eyeTitle, pinSVG, ensureDefs, tierName, byId as badgeById } from "./badges.js";
 import * as api from "./sync.js";
 import { analyze } from "./vision.js";
@@ -812,6 +812,16 @@ function importSalon() {
 }
 $("#nudgeGo").onclick = () => { $("#nudge").hidden = true; show("settings"); };
 
+/* ---------- level recalibration ---------- */
+// When the ladder changes, your level is re-read from your history once. It can go down; pins above it re-seal.
+function recalibrateLevels() {
+  if ((state.levelScale || 1) >= LEVEL_SCALE) return;
+  const before = state.level || 0, now = levelFor(stats(state, model)).level;
+  state.levelScale = LEVEL_SCALE;
+  if (now < before) { state.level = now; setTimeout(() => toast(`Levels were recalibrated for serious looking. You're a ${LEVELS[now].name} for now; your pins above that are sealed until you climb back.`, 7000), 1200); }
+  persist({ meta: true }); renderLevelChip();
+}
+
 /* ---------- first run ---------- */
 function onboarding() {
   if (state.onboarded) return;
@@ -846,6 +856,7 @@ function handlePairLink() {
   document.title = APP.name;
   renderLevelChip();
   show("look");
+  recalibrateLevels();
   if (!handlePairLink()) onboarding();
   if (state.onboarded && $("#modal").hidden) openCabinet(); else if (!state.badges["pin:_init"]) { award(state, badgeStats(state, model), currentLevel()); state.badges["pin:_init"] = Date.now(); persist({ meta: true }); }
   await api.configure();

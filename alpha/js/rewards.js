@@ -4,13 +4,16 @@
 import { tokenLabel } from "./model.js";
 import { OPENING } from "./curation.js";
 
+// Recalibrated in 0.3.1 for heavy swiping (LEVEL_SCALE 2). Volume and range gate every level; accuracy gates promotion only,
+// so a dip in prediction never demotes you (see app.js currentLevel).
+export const LEVEL_SCALE = 2;
 export const LEVELS = [
   { name: "Visitor", min: 0, acc: 0, range: 0 },
-  { name: "Docent", min: 25, acc: 0, range: 5 },
-  { name: "Collector", min: 75, acc: 0.6, range: 10 },
-  { name: "Curator", min: 200, acc: 0.65, range: 16 },
-  { name: "Connoisseur", min: 400, acc: 0.7, range: 22 },
-  { name: "Director", min: 1500, acc: 0.72, range: 30 },   // added in 0.3 for heavy use; earlier thresholds unchanged
+  { name: "Docent", min: 40, acc: 0, range: 6 },
+  { name: "Collector", min: 150, acc: 0.6, range: 14 },
+  { name: "Curator", min: 500, acc: 0.65, range: 24 },
+  { name: "Connoisseur", min: 1200, acc: 0.7, range: 32 },
+  { name: "Director", min: 2500, acc: 0.72, range: 40 },
 ];
 
 export function stats(state, model) {

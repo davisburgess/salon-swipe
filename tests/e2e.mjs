@@ -321,6 +321,22 @@ await check("badges.ceremony", async () => {
   return `${n} pins`;
 });
 
+await check("taste.recalibrate", async () => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
+  await mockWorld(ctx);
+  const p = await ctx.newPage(); await p.goto(APP);
+  await pp(p, () => {
+    const swipes = Array.from({ length: 60 }, (_, i) => ({ uid: `aic:${8000 + i}`, v: i % 2 ? 1 : -1, t: Date.now() - (60 - i) * 60000, f: [`style|S${i % 10}`], a: { uid: `aic:${8000 + i}`, src: "aic", title: `W${i}` } }));
+    localStorage.clear(); localStorage.setItem("pp-alpha-v1", JSON.stringify({ onboarded: true, swipes, level: 4, badges: { "pin:_init": 1 } }));
+  });
+  await p.reload(); await p.waitForTimeout(1600);
+  let s = await store(p); expect(s.level === 1 && s.levelScale === 2, `level ${s.level} after recalibration`);
+  expect(/recalibrated/.test(await p.textContent("#toast").catch(() => "")), "no recalibration notice");
+  expect(/Docent/.test(await p.textContent("#levelChip")), "level chip not updated");
+  await p.reload(); await p.waitForTimeout(800); s = await store(p); expect(s.level === 1, "recalibrated twice");
+  await ctx.close();
+});
+
 /* ================= Session B: broken images ================= */
 await check("look.broken", async () => {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });

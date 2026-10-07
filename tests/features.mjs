@@ -45,6 +45,7 @@ export const FEATURES = [
     checks: ["unit:cabinet: 39 pins, unique ids, every rule runs on an empty history", "unit:lineages, secrets and dates come from real-looking history", "e2e:taste.badges"] },
   { id: "badges.tiers", name: "Tiers earned early stay sealed until your level arrives", where: ["alpha/js/badges.js", "app.js#progress"],
     checks: ["unit:tiers earned beyond your level stay sealed until the level arrives"] },
+  { id: "taste.recalibrate", name: "A changed level ladder re-reads your level once, and can demote", where: ["app.js#level recalibration", "alpha/js/rewards.js"], checks: ["e2e:taste.recalibrate"] },
   { id: "badges.ceremony", name: "Existing history earns its pins in one welcome-back moment", where: ["app.js#progress", "alpha/js/badges.js"], checks: ["e2e:badges.ceremony"] },
   { id: "taste.portrait", name: "Your eye as a title, traits, Called it", where: ["alpha/js/badges.js", "app.js#Taste", "app.js#decisions"],
     checks: ["unit:eye traits need a clear lean and enough looking; the title follows", "e2e:taste.portrait"] },
