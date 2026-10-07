@@ -61,6 +61,15 @@
 <aside class="sheet" id="sheet" hidden role="dialog" aria-modal="true" aria-label="Wall text">
   <div class="sheet-top"><span class="grab" aria-hidden="true"></span><button class="btn small" id="sheetDone" type="button">Done</button></div>
   <div id="sheetBody"></div>
+  <div class="sheet-actions" id="sheetActions" hidden>
+    <div class="sheet-btns">
+      <button class="ctl pass" data-act="pass" type="button" aria-label="Pass"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      <button class="ctl later" data-act="later" type="button" aria-label="Decide later"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></button>
+      <button class="ctl keep" data-act="keep" type="button" aria-label="Keep"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5 10 17.5 19.5 7"/></svg></button>
+      <button class="ctl love" data-act="love" type="button" aria-label="Love"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 16.6l-5.2 2.8 1-5.9L3.5 9.4l5.9-.8z"/></svg></button>
+    </div>
+    <p class="sheet-hint" id="sheetHint">Or swipe this panel right to keep, left to pass</p>
+  </div>
 </aside>
 <div class="zoom" id="zoom" hidden role="dialog" aria-label="Full size image"><img id="zoomImg" alt=""><button class="btn small" id="zoomClose" type="button">Close</button></div>
 <div class="modal" id="modal" hidden role="dialog" aria-modal="true"><div class="modal-card" id="modalBody"></div></div>

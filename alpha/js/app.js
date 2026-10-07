@@ -402,13 +402,18 @@ function scaleSVG(d) {
     <rect x="${ax}" y="${y}" width="${Math.max(2, aw)}" height="${Math.max(2, ah)}" class="art"/>
   </svg><figcaption>${fmtCm(d.h)} × ${fmtCm(d.w)} cm, next to a 170 cm person</figcaption></figure>`;
 }
+let sheetForDeck = false;
 function openSheet(a) {
+  // Opened on the work you're judging: decide right from the wall text, by button or by swiping the panel.
+  sheetForDeck = currentView === "look" && deck.queue[0] === a;
+  $("#sheetActions").hidden = !sheetForDeck;
+  $("#sheetHint").hidden = (state.sheetDecisions || 0) >= 3;
   const f = features(a), why = model.trained ? model.explain(f, 3) : [];
   const facts = [["Date", a.date], ["Medium", a.medium], ["Size", a.dims], ["Made in", a.place], ["Movement", a.movement], ["Type", a.kind], ["Credit", a.credit]]
     .filter(([, v]) => v).map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("");
   const reasons = why.length ? `<section class="reasons"><h3>Why you're seeing this</h3><ul>${why.map((x) => `<li><span class="${x.dir === "+" ? "up" : "down"}">${x.dir === "+" ? "Draws you" : "Puts you off"}</span> ${esc(x.dimLabel)}: ${esc(x.value)}</li>`).join("")}</ul></section>` : "";
   $("#sheetBody").innerHTML = `
-    <button class="zoomBtn" id="zoomBtn" aria-label="View full size"><img src="${esc(a.image)}" alt=""></button>
+    <button class="zoomBtn" id="zoomBtn" aria-label="View full size"><img src="${esc(a.image)}" alt="" draggable="false"></button>
     <h2 class="sheet-title"><cite>${esc(a.title)}</cite></h2>
     <p class="sheet-who">${esc(a.artist || "Unknown maker")}${a.artistBio ? `<br><span>${esc(a.artistBio)}</span>` : ""}</p>
     <div id="sheetText" class="prose">${(a.paras && a.paras.length) ? a.paras.map((p) => `<p>${esc(p)}</p>`).join("") : `<p class="muted">Reading the wall text…</p>`}</div>
@@ -438,7 +443,46 @@ function openSheet(a) {
       $("#onview").textContent = a.onView ? `On view now${a.gallery ? `: ${a.gallery}` : ""}, ${museumShort(a.src)}` : `In storage at ${a.museum}`; }
   }).catch(() => { const box = $("#sheetText"); if (box) box.innerHTML = `<p class="muted">Couldn't reach the museum for the wall text. Try again in a moment.</p>`; });
 }
-function closeSheet() { if (sheet.hidden) return; sheet.classList.remove("open"); sheet.hidden = scrim.hidden = true; }
+function closeSheet() { if (sheet.hidden) return; sheet.classList.remove("open", "dragging"); sheet.style.transform = ""; sheet.hidden = scrim.hidden = true; setEdges(0, 0); }
+function decideFromSheet(act, vel) {
+  if (!sheetForDeck) return;
+  closeSheet();
+  state.sheetDecisions = (state.sheetDecisions || 0) + 1;
+  if (act === "later") later(vel); else decide(act === "keep" ? 1 : act === "pass" ? -1 : 2, vel);
+}
+$$("#sheetActions [data-act]").forEach((b) => (b.onclick = () => decideFromSheet(b.dataset.act)));
+// Horizontal drag on the panel: same thresholds as the card. Vertical movement is left to native scrolling.
+(() => {
+  let sx = 0, sy = 0, dx = 0, t0 = 0, mode = null, id = null;
+  sheet.addEventListener("pointerdown", (e) => {
+    if (!sheetForDeck || e.button > 0 || e.target.closest("a, select, input, textarea")) return;
+    sx = e.clientX; sy = e.clientY; dx = 0; t0 = performance.now(); mode = null; id = e.pointerId;
+  });
+  sheet.addEventListener("pointermove", (e) => {
+    if (e.pointerId !== id) return;
+    const mx = e.clientX - sx, my = e.clientY - sy;
+    if (!mode && Math.abs(mx) + Math.abs(my) > 10) {
+      mode = Math.abs(mx) > Math.abs(my) * 1.4 ? "x" : "y";
+      if (mode === "x") try { sheet.setPointerCapture(e.pointerId); } catch (err) {}   // keep tracking past the screen edge
+    }
+    if (mode !== "x") return;
+    dx = mx; sheet.classList.add("dragging");
+    sheet.style.transform = `translateX(${dx}px) rotate(${clamp(dx / 40, -6, 6)}deg)`;
+    setEdges(dx, 0);
+  });
+  const end = (e) => {
+    if (e.pointerId !== id) return; id = null;
+    if (mode !== "x") { mode = null; return; }
+    const vx = dx / Math.max(1, performance.now() - t0), W = innerWidth;
+    sheet.classList.remove("dragging");
+    if (Math.abs(dx) > W * 0.3 || (Math.abs(vx) > 0.6 && Math.abs(dx) > 50)) decideFromSheet(dx > 0 ? "keep" : "pass", { vx, vy: 0 });
+    else { sheet.style.transform = ""; setEdges(0, 0); }
+    mode = null;
+  };
+  sheet.addEventListener("pointerup", end); sheet.addEventListener("pointercancel", end);
+  // A horizontal drag shouldn't also count as a tap on whatever was under the finger.
+  sheet.addEventListener("click", (e) => { if (Math.abs(dx) > 10 && !e.target.closest("[data-act]")) { e.stopPropagation(); e.preventDefault(); } dx = 0; }, true);
+})();
 scrim.onclick = closeSheet; $("#sheetDone").onclick = closeSheet;
 (() => { let y0 = null;
   sheet.addEventListener("touchstart", (e) => { y0 = sheet.scrollTop <= 0 ? e.touches[0].clientY : null; }, { passive: true });

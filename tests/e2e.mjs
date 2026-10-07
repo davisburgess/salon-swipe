@@ -123,8 +123,30 @@ const store = (p) => pp(p, () => JSON.parse(localStorage.getItem("pp-alpha-v1"))
     await p.screenshot({ path: `${OUT}/walltext.png` });
   });
   await check("wall.scale", async () => { expect(await p.isVisible(".scale svg .person"), "no person"); expect(/170 cm/.test(await p.textContent(".scale figcaption")), "no caption"); });
+  await check("wall.decide", async () => { let step = "start"; try {
+    await p.click("#sheetDone");
+    let n = (await store(p)).swipes.length;
+    await waitTop(p); await p.keyboard.press("i"); await p.waitForSelector("#sheet.open");
+    expect(await p.isVisible("#sheetActions"), "no decision bar on the wall text");
+    const t1 = await topTitle(p);
+    step = "keep button"; await p.click('#sheetActions [data-act="keep"]'); await p.waitForTimeout(450);
+    let s = await store(p); expect(s.swipes.length === n + 1 && s.swipes.at(-1).v === 1, "Keep from the wall text didn't record"); expect(await p.isHidden("#sheet"), "wall text stayed open");
+    expect(await topTitle(p) !== t1, "next work didn't appear"); n++;
+    await waitTop(p); await p.keyboard.press("i"); await p.waitForSelector("#sheet.open"); await p.waitForTimeout(300);
+    step = "reopen for swipe"; const box = await p.locator("#sheet").boundingBox(); const y = box.y + 180;
+    await p.mouse.move(box.x + box.width / 2, y); await p.mouse.down(); await p.mouse.move(box.x + box.width / 2 - 120, y + 4, { steps: 6 }); await p.mouse.move(box.x + box.width / 2 - 260, y + 6, { steps: 6 }); await p.mouse.up();
+    await p.waitForTimeout(450);
+    s = await store(p); expect(s.swipes.length === n + 1 && s.swipes.at(-1).v === -1, "swiping the panel left didn't pass"); n++;
+    await waitTop(p); await p.keyboard.press("i"); await p.waitForSelector("#sheet.open"); await p.waitForTimeout(300);
+    await p.mouse.move(box.x + box.width / 2, y); await p.mouse.down(); step = "small drag"; await p.mouse.move(box.x + box.width / 2 + 30, y + 2, { steps: 4 }); await p.mouse.up(); await p.waitForTimeout(300);
+    expect((await store(p)).swipes.length === n && await p.isVisible("#sheet.open"), "a small drag shouldn't decide");
+    await p.screenshot({ path: `${OUT}/walltext-actions.png` });
+    step = "later button"; await p.click('#sheetActions [data-act="later"]'); await p.waitForTimeout(400); expect(await p.isHidden("#sheet"), "Later from the wall text didn't close it");
+    step = "reopen for zoom"; await waitTop(p); await p.keyboard.press("i"); await p.waitForSelector("#sheet.open"); await p.click("#zoomBtn");
+  } catch (e) { throw new Error(`${step}: ${e.message} | modal: ${await p.isVisible("#modal:not([hidden])")} why: ${await p.isVisible("#why:not([hidden])")}`); } });
   await check("wall.zoom", async () => {
-    await p.click("#zoomBtn"); await p.waitForSelector("#zoom:not([hidden])"); await p.click("#zoomImg");
+    if (await p.isHidden("#zoom")) await p.click("#zoomBtn");
+    await p.waitForSelector("#zoom:not([hidden])"); await p.click("#zoomImg");
     expect(await pp(p, () => document.querySelector("#zoom").classList.contains("big")), "tap didn't zoom");
     await p.click("#zoomClose"); expect(await p.isHidden("#zoom"), "zoom didn't close"); await p.click("#sheetDone");
   });
@@ -184,7 +206,9 @@ const store = (p) => pp(p, () => JSON.parse(localStorage.getItem("pp-alpha-v1"))
     const btn = p.locator(".tile-wrap .lovebtn[aria-pressed=false]").first(); const uid = await btn.getAttribute("data-uid");
     await btn.click(); await p.waitForTimeout(150); expect((await store(p)).swipes.find((s) => s.uid === uid).v === 2, "star didn't love");
     await p.locator(`.tile-wrap .lovebtn[data-uid="${uid}"]`).click(); await p.waitForTimeout(150); expect((await store(p)).swipes.find((s) => s.uid === uid).v === 1, "star didn't unlove");
-    await p.locator(".tile").first().click(); await p.waitForSelector("#sheet.open .sheet-love"); await p.click(".sheet-love .lovebtn");
+    await p.locator(".tile").first().click(); await p.waitForSelector("#sheet.open .sheet-love");
+    expect(await p.isHidden("#sheetActions"), "decision bar shouldn't appear for a work already in Kept");
+    await p.click(".sheet-love .lovebtn");
     expect(/Loved/.test(await p.textContent(".sheet-love")), "sheet star didn't update"); await p.click("#sheetDone");
     await p.screenshot({ path: `${OUT}/kept.png` });
   });

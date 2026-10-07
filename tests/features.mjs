@@ -28,6 +28,8 @@ export const FEATURES = [
   // Wall text
   { id: "wall.sheet", name: "Wall text: description, artist, on-view status, facts, museum link", where: ["app.js#Tell me more", "alpha/js/sources.js"], checks: ["e2e:wall.sheet"] },
   { id: "wall.scale", name: "Size compared with a 170 cm person", where: ["app.js#Tell me more", "alpha/js/util.js"], checks: ["unit:dimension parsing", "e2e:wall.scale"] },
+  { id: "wall.decide", name: "Decide from the wall text: buttons, or swipe the panel left/right; not offered when opened from Kept", where: ["app.js#Tell me more", "alpha/index.html", "alpha/app.css"],
+    checks: ["e2e:wall.decide"], phone: "Open the wall text, scroll it, then swipe the panel right: it keeps the work and the next one appears." },
   { id: "wall.zoom", name: "Full-size view with tap to zoom", where: ["app.js#Tell me more"], checks: ["e2e:wall.zoom"], phone: "Open full size, tap to zoom, pan around, close." },
   { id: "wall.reasons", name: "Why you're seeing this", where: ["app.js#Tell me more", "alpha/js/model.js"], checks: ["unit:model learns a clear preference and explains it", "e2e:wall.reasons"] },
 
