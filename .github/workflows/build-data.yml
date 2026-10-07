@@ -1,0 +1,42 @@
+# Rebuilds the static collections (National Gallery of Art, Cleveland Museum of Art) from their open-data
+# releases and commits them under alpha/data/. Runs monthly, on changes to the build scripts, or on demand.
+name: Build collections
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "41 9 3 * *"   # 3rd of each month
+  push:
+    branches: [main]
+    paths: ["tools/build_*.py", ".github/workflows/build-data.yml"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-data
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch open data
+        run: |
+          git lfs install
+          git clone --depth 1 https://github.com/ClevelandMuseumArt/openaccess /tmp/cma
+          git clone --depth 1 https://github.com/NationalGalleryOfArt/opendata /tmp/nga
+          ls -la /tmp/cma/data.json /tmp/nga/data/objects.csv
+      - name: Build
+        run: |
+          python3 tools/build_nga.py /tmp/nga/data | tee -a "$GITHUB_STEP_SUMMARY"
+          python3 tools/build_cma.py /tmp/cma/data.json | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add alpha/data
+          git commit -m "Rebuild static collections" || exit 0
+          git pull --rebase
+          git push
