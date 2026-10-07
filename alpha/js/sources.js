@@ -261,11 +261,18 @@ export function normalizeWikidata(rows) {
   }
   return [...by.values()];
 }
+const WD_BROWSE = ["Impressionism", "Post-Impressionism", "Baroque", "Romanticism", "Realism", "Symbolism", "Expressionism", "Rococo",
+  "Neoclassicism", "Art Nouveau", "Fauvism", "Cubism", "Futurism", "Pre-Raphaelite Brotherhood", "Mannerism", "Dutch Golden Age painting",
+  "Hudson River School", "Vienna Secession", "Der Blaue Reiter", "Pointillism", "Academic art", "Barbizon school", "Tonalism", "Naturalism"];
 async function searchWikidata(q, { limit = 24, browse = false } = {}) {
   const run = async (query, offset) => normalizeWikidata(((await getJSON(`${WD}?format=json&query=${encodeURIComponent(wdQuery(query, offset))}`, 20000)).results || {}).bindings);
-  // Browse terms ("portrait", "harvest") aren't movement or artist names here, so browsing takes a random slice instead.
-  if (!q || browse) return shuffle(await run(null, Math.floor(Math.random() * 3000))).slice(0, limit);
-  let out = await run({ mode: "movement", text: q }, 0);
+  // Browse terms ("portrait", "harvest") aren't movement names here. A random deep slice of every painting is too slow
+  // for Wikidata (it timed out in the live probe), so browsing picks a well-covered movement instead: fast and varied.
+  const browsing = !q || browse;
+  if (browsing) q = WD_BROWSE[Math.floor(Math.random() * WD_BROWSE.length)];
+  const offset = browsing ? 60 * Math.floor(Math.random() * 4) : 0;   // vary which works come back; small movements fall back to the start
+  let out = await run({ mode: "movement", text: q }, offset);
+  if (!out.length && offset) out = await run({ mode: "movement", text: q }, 0);
   if (!out.length) out = await run({ mode: "creator", text: q }, 0);
   return shuffle(out).slice(0, limit);
 }
