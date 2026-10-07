@@ -71,5 +71,11 @@ export const FEATURES = [
   // Content sources
   { id: "sources.chicago", name: "Art Institute of Chicago works", where: ["alpha/js/sources.js"], checks: ["unit:Chicago normalizer", "live:aic"] },
   { id: "sources.met", name: "The Met works", where: ["alpha/js/sources.js"], checks: ["unit:Met normalizer keeps only public-domain works with images", "live:met"] },
-  { id: "sources.cleveland", name: "Cleveland Museum of Art works", where: ["alpha/js/sources.js"], checks: ["unit:Cleveland normalizer", "live:cma"] },
+  { id: "sources.cleveland", name: "Cleveland Museum of Art works (static, rebuilt monthly; its API blocks browsers)", where: ["alpha/js/sources.js", "tools/build_cma.py", "alpha/data/cma/"],
+    checks: ["unit:Cleveland normalizer", "unit:Cleveland normalizer on a real record prefers wall text and real image", "unit:static collections: term search and browse over shards", "live:cma"] },
+  { id: "sources.nga", name: "National Gallery of Art works (static, rebuilt monthly)", where: ["alpha/js/sources.js", "tools/build_nga.py", "alpha/data/nga/"],
+    checks: ["unit:static collections: term search and browse over shards", "e2e:sources.mix", "live:nga"] },
+  { id: "sources.wikidata", name: "Wikidata and Wikimedia Commons paintings", where: ["alpha/js/sources.js"], checks: ["unit:Wikidata normalizer on a real SPARQL response", "e2e:sources.mix", "live:wd"] },
+  { id: "sources.vam", name: "Victoria and Albert Museum works and wall text", where: ["alpha/js/sources.js"], checks: ["unit:V&A normalizer on a real search response", "e2e:sources.mix", "live:vam"] },
+  { id: "sources.smk", name: "SMK (National Gallery of Denmark) works", where: ["alpha/js/sources.js"], checks: ["unit:SMK normalizer on a real search response", "e2e:sources.mix", "live:smk"] },
 ];

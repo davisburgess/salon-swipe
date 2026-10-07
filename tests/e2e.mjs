@@ -48,10 +48,10 @@ const store = (p) => pp(p, () => JSON.parse(localStorage.getItem("pp-alpha-v1"))
   await p.click("#obGo");
   await check("look.opening", async () => {
     await waitTop(p); const cue = await p.textContent(".card.top .cue");
-    expect(/Opening hang 1 of 34: Impressionism/.test(cue), `first card: ${cue.slice(0, 60)}`);
-    await press(p, "ArrowRight"); expect(/Opening hang 2 of 34: Ancient Egypt/.test(await p.textContent(".card.top .cue")), "second card not Ancient Egypt");
+    expect(/Opening hang 1 of \d+: Impressionism/.test(cue), `first card: ${cue.slice(0, 60)}`);
+    await press(p, "ArrowRight"); expect(/Opening hang 2 of \d+: Ancient Egypt/.test(await p.textContent(".card.top .cue")), "second card not Ancient Egypt");
     await p.reload(); await waitTop(p);
-    expect(/Opening hang 2 of 34: Ancient Egypt/.test(await p.textContent(".card.top .cue")), "reload skipped an unseen tradition");
+    expect(/Opening hang 2 of \d+: Ancient Egypt/.test(await p.textContent(".card.top .cue")), "reload skipped an unseen tradition");
   });
   await check("look.wall", async () => {
     const s = await pp(p, () => { const img = document.querySelector(".card.top .work"), lab = document.querySelector(".card.top .label");
@@ -115,6 +115,8 @@ const store = (p) => pp(p, () => JSON.parse(localStorage.getItem("pp-alpha-v1"))
     const s = await store(p); expect(s.swipes.some((x) => t.startsWith(x.a.title) && x.v === 0), "third Later didn't mark undecided");
   });
   await check("wall.sheet", async () => {
+    // The Chicago mock carries known wall text and sizes; pass other museums' works until one is on top.
+    for (let i = 0; i < 12 && (await pp(p, () => __pp.deck.queue[0] && __pp.deck.queue[0].src)) !== "aic"; i++) await press(p, "ArrowLeft");
     await waitTop(p); const lb = await p.locator(".card.top .label").boundingBox(); await p.mouse.click(lb.x + 20, lb.y + 10);
     await p.waitForSelector("#sheet.open"); await p.waitForTimeout(400);
     const txt = await p.textContent("#sheetBody");
@@ -217,12 +219,16 @@ const store = (p) => pp(p, () => JSON.parse(localStorage.getItem("pp-alpha-v1"))
     await p.reload(); expect((await store(p)).settings.explore === 0.8, "slider not saved");
   });
   await check("settings.museums", async () => {
-    await p.click("#tab-settings"); await p.uncheck('[data-src="met"]'); await p.uncheck('[data-src="cma"]');
+    await p.click("#tab-settings");
+    const others = ["met", "nga", "cma", "wd", "vam", "smk"];
+    for (const k of others) await p.uncheck(`[data-src="${k}"]`);
+    expect(/non-commercial/.test(await p.textContent("#view-settings")) && /Danish/.test(await p.textContent("#view-settings")), "V&A and SMK notes not shown");
     const before = { ...calls };
     await pp(p, async () => { __pp.deck.pool = []; await __pp.deck.refill(); });
     const srcs = await pp(p, () => [...new Set(__pp.deck.pool.map((a) => a.src))]);
-    expect(srcs.length === 1 && srcs[0] === "aic", `pool sources: ${srcs}`); expect(calls.met === before.met && calls.cma === before.cma, "disabled museums were still called");
-    await p.check('[data-src="met"]'); await p.check('[data-src="cma"]');
+    expect(srcs.length === 1 && srcs[0] === "aic", `pool sources: ${srcs}`);
+    expect(["met", "wd", "vam", "smk"].every((k) => calls[k] === before[k]), "disabled museums were still called");
+    for (const k of others) await p.check(`[data-src="${k}"]`);
   });
   await check("data.backup", async () => {
     const n = (await store(p)).swipes.length;
@@ -238,6 +244,11 @@ const store = (p) => pp(p, () => JSON.parse(localStorage.getItem("pp-alpha-v1"))
     return name;
   });
   await check("data.reset", async () => { expect(results.get("data.backup")?.ok, "covered by data.backup (erase then restore)"); });
+  await check("sources.mix", async () => {
+    const srcs = new Set((await store(p)).swipes.map((x) => x.a.src));
+    for (const k of ["nga", "wd", "vam", "smk"]) expect(srcs.has(k), `no works from ${k} in a full session (saw ${[...srcs].join(", ")})`);
+    return [...srcs].join(", ");
+  });
   await check("look.norepeat", async () => { const u = (await store(p)).swipes.map((s) => s.uid); expect(u.length === new Set(u).size, `${u.length - new Set(u).size} repeats`); return `${u.length} decisions, 0 repeats`; });
   await check("app.install", async () => {
     const m = await (await p.request.get(`${APP}manifest.webmanifest`)).json();
@@ -267,7 +278,8 @@ await check("look.broken", async () => {
 /* ================= Session C: every museum down ================= */
 await check("look.outage", async () => {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
-  await mockWorld(ctx, { down: new Set(["aic", "met", "cma"]) });
+  await mockWorld(ctx, { down: new Set(["aic", "met", "wd", "vam", "smk"]) });
+  await ctx.route("**/alpha/data/**", (r) => r.fulfill({ status: 503, body: "" }));   // static collections unreachable too
   const p = await ctx.newPage(); await p.goto(APP); await pp(p, () => { localStorage.clear(); localStorage.setItem("pp-alpha-v1", JSON.stringify({ onboarded: true })); }); await p.reload();
   await p.waitForSelector("#retry", { timeout: 15000 });
   expect(/aren't answering/.test(await p.textContent(".empty")), "no outage message");

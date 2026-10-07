@@ -6,6 +6,24 @@ How every release ships:
 3. **GitHub re-runs everything on each push** (Actions, "Checks"), and probes the real museum APIs every morning, which the build workspace can't reach.
 4. **At most one small usability improvement per release,** listed here so you can veto it. Never a change to gestures, saved data, or anything you'd have to relearn without asking first.
 
+## 0.2.0-alpha (Oct 6, 2026)
+
+**Change requested by you: more art.** Seven sources instead of three, roughly 46,000 more works on disk plus four live collections.
+- **National Gallery of Art** (Washington): 22,461 public-domain works with images, from its open dataset. Strong in European painting, American art and folk art.
+- **Wikidata and Wikimedia Commons:** paintings by artists who died before 1955, searchable by movement or artist. Fills the modern gaps: Futurism, Vienna Secession, Der Blaue Reiter, Fauvism, Expressionism.
+- **Victoria and Albert Museum** (London): decorative arts, Mughal and South Asian painting, Arts and Crafts, Pre-Raphaelites. Images are for personal, non-commercial use only; Settings says so.
+- **SMK, National Gallery of Denmark:** Danish Golden Age and Nordic painting. Titles are often in Danish; types, techniques and nationalities are translated.
+- **Five new traditions** in the opening hang (39 total): American folk art, Danish Golden Age, Futurism, Vienna Secession, Der Blaue Reiter. Existing traditions now draw from the best-suited source.
+
+**Review found and fixed**
+- **Cleveland never worked in a browser.** Its API sends no cross-origin permission, so every Cleveland request from the app failed silently and the other museums covered for it. Cleveland now loads from its open dataset (24,141 CC0 works with images), rebuilt monthly on GitHub along with the National Gallery's.
+- Browsing (outside the opening hang) sent words like "portrait" to Wikidata as if they were movement names and got nothing back. Browsing now takes a random slice of each collection when a word doesn't match.
+
+**Usability improvement:** none this release. It's all new art, and adding a UI change on top would muddy what to test.
+
+**Checks:** 36 unit and backend tests (new: Wikidata, V&A, SMK and Cleveland normalizers run against real responses captured from each API; static collection search), 37 of 37 browser feature checks (new: sources.mix, which requires works from the National Gallery, Wikidata, V&A and SMK in one session). The nightly live probe now covers all seven sources.
+**On your phone:** swipe about 40 works and open Kept. You should see museum names beyond Chicago and the Met. Open the wall text on a V&A or SMK work. In Settings, check that seven museums are listed and the V&A note shows.
+
 ## 0.1.2-alpha (Oct 6, 2026)
 
 **Change requested by you**

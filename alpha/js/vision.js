@@ -36,7 +36,7 @@ function rgbToHsl(r, g, b) {
 const cache = new Map();
 export function analyze(item, ms = 6000) {
   if (cache.has(item.uid)) return cache.get(item.uid);
-  const url = item.src === "aic" ? item.image.replace("/full/843,/", "/full/!64,64/") : item.image;
+  const url = item.image.replace("/full/843,/", "/full/!64,64/").replace("/full/!900,900/", "/full/!64,64/").replace(/\?width=900$/, "?width=64");
   const p = new Promise((resolve) => {
     const img = new Image();
     const done = (v) => { clearTimeout(t); resolve(v); };

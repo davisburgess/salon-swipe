@@ -2,7 +2,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { parseDimsCm, htmlToParas, workKey, eraOf, mediumFamily } from "../alpha/js/util.js";
-import { normalizeAIC, normalizeMet, normalizeCMA } from "../alpha/js/sources.js";
+import { normalizeAIC, normalizeMet, normalizeCMA, normalizeWikidata, normalizeVAM, normalizeSMK, normalizeStatic, search } from "../alpha/js/sources.js";
+import { readFileSync } from "node:fs";
 import { TasteModel, features } from "../alpha/js/model.js";
 import { Deck, ARTIST_GAP, MAX_DEFERS } from "../alpha/js/deck.js";
 import { blank, record, fromSalonSwipe, parseBackup, mergeSwipes, encodeCode, backupPayload } from "../alpha/js/store.js";
@@ -246,4 +247,67 @@ test("New style replaces the current work without recording a decision", async (
   assert.equal(st.swipes.length, 0, "no vote recorded");
   assert.ok(!st.seen[current.uid]);
   assert.ok(d.pool.includes(current), "skipped work can come back later");
+});
+
+/* ---------- sources added in 0.2: tested against real responses captured by the probe workflow ---------- */
+const live = (f) => JSON.parse(readFileSync(new URL(`./fixtures/live/${f}.body`, import.meta.url), "utf8"));
+
+test("Wikidata normalizer on a real SPARQL response", () => {
+  const out = normalizeWikidata(live("wikidata").results.bindings);
+  assert.ok(out.length >= 3, `only ${out.length} works`);
+  const a = out[0];
+  assert.match(a.uid, /^wd:Q\d+$/); assert.ok(a.title && a.artist); assert.equal(a.movement, "Impressionism");
+  assert.match(a.image, /^https:\/\/commons\.wikimedia\.org\/wiki\/Special:FilePath\/.+\?width=900$/);
+  assert.ok(out.every((x) => !/^Q\d+$/.test(x.title)), "no bare Q-ids as titles");
+  assert.equal(new Set(out.map((x) => x.uid)).size, out.length, "one work per item even with several rows");
+});
+
+test("V&A normalizer on a real search response", () => {
+  const out = live("vam").records.map(normalizeVAM).filter(Boolean);
+  assert.ok(out.length >= 1);
+  const a = out[0];
+  assert.match(a.uid, /^vam:O\d+$/); assert.equal(a.artist, "Jan van Goyen", "maker name flipped to natural order");
+  assert.match(a.image, /^https:\/\/framemark\.vam\.ac\.uk\/collections\/.+\/full\/!900,900\/0\/default\.jpg$/);
+  assert.equal(a.year, 1628); assert.match(a.url, /^https:\/\/collections\.vam\.ac\.uk\/item\/O\d+\/$/);
+});
+
+test("SMK normalizer on a real search response", () => {
+  const out = [...live("smk").items, ...live("smk_monet").items].map(normalizeSMK).filter(Boolean);
+  assert.ok(out.length >= 4);
+  const k = out.find((x) => x.uid === "smk:KMS3427");
+  assert.equal(k.artist, "Ludvig Karsten"); assert.equal(k.artistBio, "Norwegian, 1876–1926");
+  assert.equal(k.medium, "Oil on canvas"); assert.equal(k.kind, "Painting"); assert.deepEqual(k.dimsCm, { h: 77.9, w: 53.1 });
+  const print = out.find((x) => x.uid === "smk:KKS5261"); assert.deepEqual(print.dimsCm, { h: 34, w: 26.9 }, "millimetres converted");
+});
+
+test("Cleveland normalizer on a real record prefers wall text and real image", () => {
+  const a = normalizeCMA(live("cma_cors").data[0]);
+  assert.equal(a.artist, "John Singleton Copley"); assert.ok(a.paras.length >= 1);
+  assert.match(a.image, /openaccess-cdn\.clevelandart\.org/);
+});
+
+test("static collections: term search and browse over shards", async () => {
+  const sample = JSON.parse(readFileSync(new URL("./fixtures/nga-sample.json", import.meta.url), "utf8"));
+  const shards = [sample.slice(0, 6), sample.slice(6, 12)];
+  const terms = {}; sample.forEach((r, n) => { if (r.s) (terms[r.s] ||= []).push(n); if (r.k) (terms[r.k] ||= []).push(n); });
+  const index = { count: 12, shardSize: 6, shards: 2, terms };
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.endsWith("/nga/index.json")) return new Response(JSON.stringify(index));
+    const m = u.match(/\/nga\/shard-(\d+)\.json$/); if (m) return new Response(JSON.stringify(shards[+m[1]]));
+    return new Response("", { status: 404 });
+  };
+  try {
+    const kind = sample[0].k;
+    const hits = await search("nga", kind, { limit: 20 });
+    assert.ok(hits.length >= 1 && hits.every((a) => a.kind === kind), `term search returned ${hits.map((a) => a.kind)}`);
+    assert.ok(hits.every((a) => /^https:\/\/api\.nga\.gov\/iiif\/.+\/full\/!900,900\/0\/default\.jpg$/.test(a.image)));
+    const browse = await search("nga", "", { limit: 4 });
+    assert.ok(browse.length >= 1 && browse.every((a) => a.uid.startsWith("nga:")));
+    assert.deepEqual(await search("nga", "no such movement", {}), [], "a named tradition with no match yields nothing");
+    assert.ok((await search("nga", "harvest", { limit: 4, browse: true })).length >= 1, "browsing with an unmatched term still returns works");
+    const one = normalizeStatic("nga", sample.find((r) => r.h));
+    assert.ok(one.dimsCm && one.onView === null, "NGA works have sizes and no on-view claim");
+  } finally { globalThis.fetch = realFetch; }
 });

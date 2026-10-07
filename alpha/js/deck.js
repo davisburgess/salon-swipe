@@ -11,7 +11,7 @@ import { features } from "./model.js";
 import { workKey, norm, shuffle } from "./util.js";
 
 export const ARTIST_GAP = 6, LATER_MIN = 15, LATER_MAX = 25, MAX_DEFERS = 3, POOL_TARGET = 24;
-const SRC_WEIGHT = { aic: 0.5, met: 0.25, cma: 0.25 };
+const SRC_WEIGHT = { aic: 0.2, nga: 0.2, met: 0.12, cma: 0.12, wd: 0.14, smk: 0.12, vam: 0.1 };
 
 export class Deck {
   constructor({ state, model, search, isAvailable, rand = Math.random }) {

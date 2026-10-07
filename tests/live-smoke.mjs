@@ -1,6 +1,11 @@
 // Nightly check against the REAL museum APIs, using the app's own adapters. Run on GitHub (the build workspace can't reach them).
 // Fails loudly if a museum changes its data format or stops serving public-domain images.
 import { search, details, health } from "../alpha/js/sources.js";
+import { readFile } from "node:fs/promises";
+
+// The static collections (National Gallery, Cleveland) load from alpha/data next to the app; Node's fetch can't read file:// URLs.
+const netFetch = globalThis.fetch;
+globalThis.fetch = (u, o) => String(u).startsWith("file:") ? readFile(new URL(String(u))).then((b) => new Response(b)) : netFetch(u, o);
 
 const out = []; let failed = 0;
 async function probe(src, q, opts) {
@@ -20,8 +25,16 @@ const aic = await probe("aic", "Impressionism");
 await probe("aic", "", { browse: true });
 await probe("met", "Ukiyo-e");
 await probe("met", "", { browse: true });
-await probe("cma", "Impressionism");
+await probe("cma", "Egyptian");
 await probe("cma", "", { browse: true });
+await probe("nga", "Baroque");
+await probe("nga", "", { browse: true });
+await probe("wd", "Futurism");
+await probe("wd", "portrait", { browse: true });
+await probe("vam", "Mughal");
+await probe("vam", "", { browse: true });
+await probe("smk", "Eckersberg");
+await probe("smk", "", { browse: true });
 if (aic[0]) {
   try { const d = await details(aic[0]); out.push(`${d.paras.length ? "PASS" : "WARN"} aic  wall text: ${d.paras.length} paragraphs, on view: ${d.onView}`); }
   catch (e) { failed++; out.push(`FAIL aic  wall text: ${e.message}`); }

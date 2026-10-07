@@ -1,6 +1,6 @@
 // Offline support. The app shell is cached on install; artwork images are cached as you see them
 // (newest 300 kept); museum API calls always go to the network so you get fresh works.
-const VERSION = "pp-0.1.2-alpha";
+const VERSION = "pp-0.2.0-alpha";
 const SHELL = ["./", "./index.html", "./app.css", "./manifest.webmanifest", "./privacy.html",
   "./js/app.js", "./js/util.js", "./js/curation.js", "./js/sources.js", "./js/model.js", "./js/deck.js",
   "./js/store.js", "./js/rewards.js", "./js/sync.js", "./js/vision.js", "./js/config.js",
@@ -14,7 +14,7 @@ self.addEventListener("activate", (e) => {
   e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => !k.startsWith(VERSION)).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 
-const isImage = (u) => /\/iiif\/2\/|images\.metmuseum\.org|openaccess-cdn\.clevelandart\.org|\.(jpe?g|png|webp)(\?|$)/i.test(u.href);
+const isImage = (u) => /\/iiif\/|images\.metmuseum\.org|openaccess-cdn\.clevelandart\.org|framemark\.vam\.ac\.uk|iip(-thumb)?\.smk\.dk|api\.smk\.dk\/api\/v1\/thumbnail|upload\.wikimedia\.org|Special:FilePath|\.(jpe?g|png|webp)(\?|$)/i.test(u.href);
 const isFont = (u) => u.hostname === "fonts.gstatic.com" || u.hostname === "fonts.googleapis.com";
 
 async function trim(name, max) {

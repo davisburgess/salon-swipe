@@ -418,7 +418,7 @@ function openSheet(a) {
     <p class="sheet-who">${esc(a.artist || "Unknown maker")}${a.artistBio ? `<br><span>${esc(a.artistBio)}</span>` : ""}</p>
     <div id="sheetText" class="prose">${(a.paras && a.paras.length) ? a.paras.map((p) => `<p>${esc(p)}</p>`).join("") : `<p class="muted">Reading the wall text…</p>`}</div>
     ${(() => { const r = state.swipes.find((s) => s.uid === a.uid); return r && r.v > 0 ? `<p class="sheet-love">${loveBtn(r)}<span>${r.v === 2 ? "Loved" : "Kept. Tap the star to love it."}</span></p>` : ""; })()}
-    <p class="onview ${a.onView ? "yes" : ""}" id="onview">${a.onView ? `On view now${a.gallery ? `: ${esc(a.gallery)}` : ""}, ${esc(museumShort(a.src))}` : `In storage at ${esc(a.museum || "the museum")}`}</p>
+    <p class="onview ${a.onView ? "yes" : ""}" id="onview" ${a.onView == null ? "hidden" : ""}>${a.onView ? `On view now${a.gallery ? `: ${esc(a.gallery)}` : ""}, ${esc(museumShort(a.src))}` : `In storage at ${esc(a.museum || "the museum")}`}</p>
     ${scaleSVG(a.dimsCm)}
     <dl class="facts">${facts}</dl>
     ${reasons}
@@ -439,7 +439,7 @@ function openSheet(a) {
     box.innerHTML = d.paras && d.paras.length ? d.paras.map((p) => `<p>${esc(p)}</p>`).join("")
       : `<p class="muted">The museum hasn't published a description for this work. Look closely and decide for yourself.</p>`;
     if (d.onView != null) { a.onView = d.onView; a.gallery = d.gallery || a.gallery;
-      $("#onview").className = `onview ${a.onView ? "yes" : ""}`;
+      $("#onview").className = `onview ${a.onView ? "yes" : ""}`; $("#onview").hidden = false;
       $("#onview").textContent = a.onView ? `On view now${a.gallery ? `: ${a.gallery}` : ""}, ${museumShort(a.src)}` : `In storage at ${a.museum}`; }
   }).catch(() => { const box = $("#sheetText"); if (box) box.innerHTML = `<p class="muted">Couldn't reach the museum for the wall text. Try again in a moment.</p>`; });
 }
@@ -592,7 +592,7 @@ function renderSettings() {
   const srcRows = Object.entries(MUSEUMS).map(([k, m]) => {
     const h = srcHealth[k], benched = !isAvailable(k), on = state.settings.sources[k] !== false;
     const status = !on ? "Off" : benched ? "Resting after errors" : h.last ? `Last error: ${h.last}` : h.ok ? "Working" : "Not used yet";
-    return `<label class="toggle"><input type="checkbox" data-src="${k}" ${on ? "checked" : ""}><span><b>${esc(m.name)}</b><small>${esc(status)}</small></span></label>`;
+    return `<label class="toggle"><input type="checkbox" data-src="${k}" ${on ? "checked" : ""}><span><b>${esc(m.name)}</b><small>${esc(status)}${m.note ? `. ${esc(m.note)}` : ""}</small></span></label>`;
   }).join("");
   const salon = readSalon();
   $("#view-settings").innerHTML = `<div class="page settings">
@@ -616,7 +616,7 @@ function renderSettings() {
       ${salon.count ? `<div class="btns"><button class="btn" id="salonImport">Bring over ${salon.count} decisions from Salon Swipe</button></div>` : ""}
     </section>
     <section><h2>About</h2>
-      <p>${esc(APP.name)} ${esc(APP.version)}. Images and data come from the open-access programs of the Art Institute of Chicago, The Metropolitan Museum of Art and the Cleveland Museum of Art. ${esc(APP.name)} is independent and not affiliated with or endorsed by any museum.</p>
+      <p>${esc(APP.name)} ${esc(APP.version)}. Images and data come from the open-access programs of the Art Institute of Chicago, The Metropolitan Museum of Art, the National Gallery of Art, the Cleveland Museum of Art, the Victoria and Albert Museum and SMK (National Gallery of Denmark), and from Wikidata and Wikimedia Commons. ${esc(APP.name)} is independent and not affiliated with or endorsed by any museum.</p>
       <p><a href="./privacy.html">Privacy</a></p>
       <details><summary>Diagnostics</summary><pre class="diag">${esc(JSON.stringify({ version: APP.version, swipes: state.swipes.length, later: state.later.length, pool: deck.pool.length, queue: deck.queue.length, api: api.apiBase(), sources: srcHealth, saveFailed: saveFailed() }, null, 2))}</pre></details>
     </section>

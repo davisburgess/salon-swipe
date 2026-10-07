@@ -34,7 +34,7 @@ export function d1() {
 
 // opts: { backend, env, down: Set of museums that fail, brokenImages: Set of AIC image ids that 404 }
 export async function mockWorld(ctx, opts = {}) {
-  const down = opts.down || new Set(), broken = opts.brokenImages || new Set(), calls = { aic: 0, met: 0, cma: 0 };
+  const down = opts.down || new Set(), broken = opts.brokenImages || new Set(), calls = { aic: 0, met: 0, cma: 0, wd: 0, vam: 0, smk: 0 };
   await ctx.route("https://fonts.googleapis.com/**", (r) => r.fulfill({ status: 200, contentType: "text/css", body: "" }));
   await ctx.route("https://api.artic.edu/api/v1/artworks/search**", (r) => { calls.aic++; if (down.has("aic")) return r.fulfill({ status: 503, body: "" });
     const q = new URL(r.request().url()).searchParams.get("q");
@@ -55,6 +55,25 @@ export async function mockWorld(ctx, opts = {}) {
       return { id, accession_number: `1915.${id}`, title: `Cleveland work ${id}`, creation_date: "c. 1880", creation_date_earliest: 1880, culture: ["America"], technique: "watercolor", type: "Drawing",
         measurements: "Sheet: 35 x 50 cm", creators: [{ description: `Cleveland artist ${id % 7} (American, 1850–1920)` }], share_license_status: "CC0",
         images: { web: { url: `https://openaccess-cdn.clevelandart.org/fake/p${id % 6}.jpg`, width: "900", height: "700" } }, wall_description: "A quick study in watercolor.", url: "https://www.clevelandart.org/art/x", current_location: null }; }) } }); });
+  // Sources added in 0.2. Responses keep the shape of the real ones captured by the probe workflow; ids are made unique per call.
+  const live = (f) => JSON.parse(readFileSync(new URL(`./fixtures/live/${f}.body`, import.meta.url), "utf8"));
+  const wdT = live("wikidata").results.bindings, vamT = live("vam").records, smkT = [...live("smk").items, ...live("smk_monet").items];
+  const gate = (k, r) => { calls[k]++; if (down.has(k)) { r.fulfill({ status: 503, body: "" }); return true; } return false; };
+  await ctx.route("https://query.wikidata.org/**", (r) => { if (gate("wd", r)) return;
+    const bindings = Array.from({ length: 10 }, (_, i) => { const b = structuredClone(wdT[i % wdT.length]); n++;
+      b.item.value = `http://www.wikidata.org/entity/Q9${n}`; b.itemLabel.value = `${b.itemLabel.value} ${n}`; return b; });
+    r.fulfill({ json: { results: { bindings } } }); });
+  await ctx.route("https://api.vam.ac.uk/**", (r) => { if (gate("vam", r)) return;
+    if (/\/v2\/object\//.test(r.request().url())) return r.fulfill({ json: { record: { summaryDescription: "Bought for the museum's study collection." } } });
+    const records = Array.from({ length: 10 }, (_, i) => { const x = structuredClone(vamT[i % vamT.length]); n++; x.systemNumber = `O9${n}`; x._primaryTitle = `Study ${n}`; return x; });
+    r.fulfill({ json: { records } }); });
+  await ctx.route("https://api.smk.dk/**", (r) => { if (gate("smk", r)) return;
+    const items = Array.from({ length: 10 }, (_, i) => { const x = structuredClone(smkT[i % smkT.length]); n++; x.object_number = `KMS9${n}`; return x; });
+    r.fulfill({ json: { items } }); });
+  const anyImg = (r) => r.fulfill({ status: 200, contentType: "image/jpeg", headers: { "access-control-allow-origin": "*" }, body: imgs[r.request().url().length % 6] });
+  for (const h of ["https://api.nga.gov/iiif/**", "https://framemark.vam.ac.uk/**", "https://iip-thumb.smk.dk/**", "https://iip.smk.dk/**",
+    "https://commons.wikimedia.org/wiki/Special:FilePath/**", "https://upload.wikimedia.org/**"]) await ctx.route(h, anyImg);
+  await ctx.route(/openaccess-cdn\.clevelandart\.org\/(?!fake\/)/, anyImg);
   await ctx.route(/(images\.metmuseum\.org|openaccess-cdn\.clevelandart\.org)\/fake\//, (r) => r.fulfill({ status: 200, contentType: "image/jpeg", body: imgs[+(r.request().url().match(/p(\d)\.jpg/) || [0, 0])[1]] }));
   if (opts.backend) {
     await ctx.route("**/alpha/api.json", (r) => r.fulfill({ json: { base: "https://api.test" } }));

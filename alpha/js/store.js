@@ -15,7 +15,7 @@ export const blank = () => ({
   notes: [],             // Curator's Notes { id, level, title, text, tone, ai, t }
   badges: {},            // id -> time earned
   level: 0,
-  settings: { explore: 0.35, tone: "cheeky", sources: { aic: true, met: true, cma: true } },
+  settings: { explore: 0.35, tone: "cheeky", sources: { aic: true, met: true, nga: true, cma: true, wd: true, vam: true, smk: true } },
   lastBackup: 0, backupCount: 0,
   sync: { key: null, cursor: 0, lastSync: 0, dirty: [] },
   imported: {}, welcomeDismissed: false, onboarded: false,
