@@ -5,7 +5,10 @@ import { readFile } from "node:fs/promises";
 
 // The static collections (National Gallery, Cleveland) load from alpha/data next to the app; Node's fetch can't read file:// URLs.
 const netFetch = globalThis.fetch;
-globalThis.fetch = (u, o) => String(u).startsWith("file:") ? readFile(new URL(String(u))).then((b) => new Response(b)) : netFetch(u, o);
+// Museums' bot shields (and Wikidata's policy) reject Node's default client, which browsers never hit; identify like the app's users do.
+const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15 PicturePlaneProbe/1.0 (+https://github.com/davisburgess/salon-swipe)";
+globalThis.fetch = (u, o = {}) => String(u).startsWith("file:") ? readFile(new URL(String(u))).then((b) => new Response(b))
+  : netFetch(u, { ...o, headers: { "User-Agent": UA, Origin: "https://davisburgess.github.io", ...(o.headers || {}) } });
 
 const out = []; let failed = 0;
 async function probe(src, q, opts) {
