@@ -49,7 +49,7 @@
 }
 
 * { box-sizing: border-box; }
-html, body { height: 100%; }
+html, body { height: 100%; overscroll-behavior-x: none; }   /* sideways swipes stay in the app instead of becoming Back/Forward */
 body {
   margin: 0; background: var(--wall); color: var(--ink);
   font: 400 16px/1.5 var(--sans); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
@@ -184,6 +184,7 @@ textarea { width: 100%; min-height: 84px; font-size: 12.5px; }
 .jump a { flex: 0 1 8rem; text-align: center; padding: 7px 10px; border-radius: 999px; font: 500 13.5px/1 var(--sans); color: var(--ink-2); text-decoration: none; }
 .jump a[aria-current] { background: var(--paper); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.14); }
 .tsec { padding-top: 6px; scroll-margin-top: 52px; }
+#view-taste .page { padding-bottom: 30vh; }   /* room for the last sections to reach the top */
 .tsec + .tsec { margin-top: 26px; border-top: 1px solid var(--line); padding-top: 18px; }
 .sech { font: 500 28px/1.15 var(--serif); margin: 6px 0 6px; }
 .small { font-size: 13px; }
@@ -234,6 +235,19 @@ textarea { width: 100%; min-height: 84px; font-size: 12.5px; }
 .pinrow small { color: var(--ink-2); }
 @media (prefers-reduced-motion: no-preference) { .ceremony figure { animation: pinDrop .45s cubic-bezier(.2,.8,.3,1.2) both; animation-delay: calc(var(--i) * 70ms); } }
 @keyframes pinDrop { from { opacity: 0; transform: translateY(-14px) scale(.8); } to { opacity: 1; transform: none; } }
+.home { font: 500 24px/1.2 var(--serif); margin: 0 0 2px; }
+.stamps { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px 10px; margin: 4px 0 6px; color: var(--ink-2); }
+.stamps figure { margin: 0; }
+.stamps svg, .pinhead .stamp { width: 100%; height: auto; display: block; }
+.pinhead .stamp { max-width: 240px; }
+.mrows { margin-bottom: 8px; }
+.mrow { display: grid; grid-template-columns: minmax(0, 1fr) 110px 40px; gap: 10px; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.mrow .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mrow .c { font-size: 12.5px; color: var(--ink-2); text-align: right; font-variant-numeric: tabular-nums; }
+.mrow .c.wide { grid-column: 2 / 4; }
+.mrow.few .n { color: var(--ink-2); }
+.museumday { margin-top: 16px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
+.daybtns { display: flex; flex-wrap: wrap; gap: 6px; }
 .ladder { list-style: none; padding: 0; margin: 4px 0; display: grid; gap: 4px; font-size: 13.5px; }
 .ladder li { display: grid; grid-template-columns: 4.5rem 1fr auto; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); color: var(--ink-2); }
 .ladder li b { color: var(--ink); font-weight: 600; }
@@ -317,9 +331,10 @@ input[type=range] { width: 100%; accent-color: var(--gilt); }
 .reasons .up { color: var(--keep); font-weight: 500; } .reasons .down { color: var(--pass); font-weight: 500; }
 .out { font-weight: 500; }
 
-.zoom { position: fixed; inset: 0; z-index: 30; background: #0c0d0e; overflow: auto; }
-.zoom img { display: block; width: 100%; height: 100%; object-fit: contain; cursor: zoom-in; }
-.zoom.big img { width: 250%; height: auto; max-width: none; cursor: zoom-out; }
+.zoom { position: fixed; inset: 0; z-index: 30; background: #0c0d0e; overflow: hidden; overscroll-behavior: none; touch-action: none; }
+.zoom img { position: absolute; top: 0; left: 0; max-width: none; transform-origin: 0 0; cursor: zoom-in; user-select: none; -webkit-user-select: none; will-change: transform; }
+.zoom.big img { cursor: grab; }
+.zoom.big img:active { cursor: grabbing; }
 .zoom .btn { position: fixed; top: calc(12px + env(safe-area-inset-top, 0px)); right: 12px; background: #f4f3ef; color: #16181b; }
 
 .modal { position: fixed; inset: 0; z-index: 40; background: rgba(8, 9, 10, .55); display: grid; place-items: center; padding: 16px; }

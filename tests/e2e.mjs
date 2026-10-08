@@ -152,8 +152,17 @@ const store = (p) => pp(p, () => JSON.parse(localStorage.getItem("pp-alpha-v1"))
   } catch (e) { await p.screenshot({ path: `${OUT}/fail-wall-decide.png` }).catch(() => {}); throw new Error(`${step}: ${e.message} | modal: ${await p.isVisible("#modal:not([hidden])")} why: ${await p.isVisible("#why:not([hidden])")}`); } });
   await check("wall.zoom", async () => {
     if (await p.isHidden("#zoom")) await p.click("#zoomBtn");
-    await p.waitForSelector("#zoom:not([hidden])"); await p.click("#zoomImg");
-    expect(await pp(p, () => document.querySelector("#zoom").classList.contains("big")), "tap didn't zoom");
+    await p.waitForSelector("#zoom:not([hidden])"); await p.waitForTimeout(300);
+    const url = p.url();
+    await p.click("#zoomImg");
+    expect(await pp(p, () => document.querySelector("#zoom").classList.contains("big")), "click didn't zoom");
+    const T = () => p.$eval("#zoomImg", (el) => el.style.transform);
+    const t0 = await T();
+    await p.mouse.move(195, 420); await p.mouse.wheel(220, 0); await p.waitForTimeout(150);   // a two-finger sideways swipe
+    expect(await T() !== t0, "sideways scroll didn't pan the picture"); expect(p.url() === url, "sideways scroll navigated away");
+    const t1 = await T(); await p.keyboard.press("ArrowLeft"); await p.waitForTimeout(100);
+    expect(await T() !== t1, "arrow key didn't pan"); expect(await p.isVisible("#zoom"), "arrow key acted on the deck behind the picture");
+    await p.click("#zoomImg"); expect(!(await pp(p, () => document.querySelector("#zoom").classList.contains("big"))), "second click didn't zoom out");
     await p.click("#zoomClose"); expect(await p.isHidden("#zoom"), "zoom didn't close"); await p.click("#sheetDone");
   });
   await check("taste.levels", async () => {
@@ -194,7 +203,7 @@ const store = (p) => pp(p, () => JSON.parse(localStorage.getItem("pp-alpha-v1"))
   });
   await check("taste.badges", async () => {
     const total = await p.locator(".cabinet .pin").count(), n = await p.locator(".cabinet .pin.earned").count();
-    expect(total === 46, `${total} pins in the cabinet`); expect(n >= 1, "no pins shown as earned");
+    expect(total === 47, `${total} pins in the cabinet`); expect(n >= 1, "no pins shown as earned");
     expect(Object.keys((await store(p)).badges).some((k) => k === "pin:first-love:1"), "First Love not recorded");
     await p.locator(".cabinet .pin.earned").first().click(); await p.waitForSelector("#modal:not([hidden]) .walllabel");
     expect((await p.textContent("#modalBody .walllabel")).length > 10, "pin detail has no wall label");
@@ -217,7 +226,7 @@ const store = (p) => pp(p, () => JSON.parse(localStorage.getItem("pp-alpha-v1"))
     expect(await p.getAttribute('.jump a[data-jump="t-badges"]', "aria-current") === "true", "Badges not highlighted after jumping");
     const top = await p.locator("#t-badges").evaluate((el) => el.getBoundingClientRect().top); expect(top >= 0 && top < 140, `Badges section at ${top}px`);
     await p.screenshot({ path: `${OUT}/badges.png` });
-    await p.locator("#view-taste").evaluate((el) => el.scrollTo(0, el.scrollHeight)); await p.waitForTimeout(250);
+    await p.waitForTimeout(400); await p.locator("#view-taste").evaluate((el) => el.scrollTo(0, el.scrollHeight)); await p.waitForTimeout(250);
     expect(await p.getAttribute('.jump a[data-jump="t-leanings"]', "aria-current") === "true", "scrolling to the end doesn't highlight Leanings");
     await p.click('.jump a[data-jump="t-portrait"]'); await p.waitForTimeout(700);
   });
@@ -229,11 +238,11 @@ const store = (p) => pp(p, () => JSON.parse(localStorage.getItem("pp-alpha-v1"))
     await p.click("#tab-kept"); await p.waitForSelector(".tile");
     const all = await p.locator(".tile").count();
     await p.click('.filters .chip[data-f="loved"]'); const loved = await p.locator(".tile").count();
-    await p.click('.filters .chip[data-f="chicago"]'); const chi = await p.locator(".tile").count();
+    await p.click('.filters .chip[data-f="onview"]'); const chi = await p.locator(".tile").count();
     await p.click('.filters .chip[data-f="all"]');
     const s = await store(p);
     expect(all === s.swipes.filter((x) => x.v > 0).length, "All count wrong"); expect(loved === s.swipes.filter((x) => x.v === 2).length, "Loved count wrong");
-    expect(chi === s.swipes.filter((x) => x.v > 0 && x.a.src === "aic" && x.a.onView).length, "Chicago count wrong");
+    expect(chi === s.swipes.filter((x) => x.v > 0 && x.a.onView).length, "On view count wrong");
     return `${all} kept, ${loved} loved, ${chi} on view`;
   });
   await check("kept.love", async () => {
@@ -336,6 +345,33 @@ await check("taste.recalibrate", async () => {
   expect(/recalibrated/.test(await p.textContent("#toast").catch(() => "")), "no recalibration notice");
   expect(/Docent/.test(await p.textContent("#levelChip")), "level chip not updated");
   await p.reload(); await p.waitForTimeout(800); s = await store(p); expect(s.level === 1, "recalibrated twice");
+  await ctx.close();
+});
+
+await check("museums.day", async () => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
+  await mockWorld(ctx);
+  const p = await ctx.newPage(); await p.goto(APP);
+  await pp(p, () => {
+    const day0 = new Date("2026-09-12T15:00:00Z").getTime();
+    const mk = (i, src, v, onView) => ({ uid: `${src}:${7000 + i}`, v, t: day0 + i * 60000, f: [`style|S${i % 9}`], a: { uid: `${src}:${7000 + i}`, src, title: `W${i}`, onView } });
+    const swipes = [...Array.from({ length: 24 }, (_, i) => mk(i, "aic", i % 4 ? 1 : -1, i % 3 === 0)), ...Array.from({ length: 12 }, (_, i) => mk(30 + i, "met", i % 3 ? -1 : 1, false)), ...Array.from({ length: 4 }, (_, i) => mk(50 + i, "vam", 1, false))];
+    localStorage.clear(); localStorage.setItem("pp-alpha-v1", JSON.stringify({ onboarded: true, swipes, badges: { "pin:_init": 1 }, levelScale: 3 }));
+  });
+  await p.reload(); await p.click("#tab-taste"); await p.click('.jump a[data-jump="t-museums"]'); await p.waitForTimeout(600);
+  const txt = await p.textContent("#t-museums");
+  expect(/Art Institute of Chicago/.test(txt.split("Passport")[0]), "home museum isn't Chicago");
+  expect(await p.locator("#t-museums .stamp.got").count() === 2 && await p.locator("#t-museums .stamp.todo").count() === 5, "wrong stamps earned");
+  expect(/12 SEP 2026/.test(txt), "stamp not dated by the decision that earned it");
+  expect(/of your keeps in Chicago/.test(txt), "no on-view count");
+  await p.screenshot({ path: `${OUT}/museums.png`, fullPage: false });
+  await p.click('#t-museums [data-day="aic"]'); await p.waitForSelector("#view-look:not([hidden])"); await waitTop(p);
+  expect(/Museum Day at the Art Institute of Chicago: 20 to go/.test(await p.textContent(".card.top .cue")), "no Museum Day cue");
+  for (let i = 0; i < 20; i++) { await waitTop(p); expect(await pp(p, () => __pp.deck.queue[0].src) === "aic", `card ${i} not from Chicago`); await press(p, i % 2 ? "ArrowRight" : "ArrowLeft"); }
+  await p.waitForSelector("#modal:not([hidden])", { timeout: 4000 }); expect(/Museum Day complete/.test(await p.textContent("#modalBody")), "no completion");
+  await p.screenshot({ path: `${OUT}/museumday-done.png` }); await p.click("#modalOk");
+  const s = await store(p); expect(s.museumDays && s.museumDays.aic && !s.museumDay, "Museum Day not recorded");
+  expect(Object.keys(s.badges).includes("pin:day-tripper:1"), "Day Tripper not earned");
   await ctx.close();
 });
 

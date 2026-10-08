@@ -15,7 +15,9 @@ export const blank = () => ({
   notes: [],             // Curator's Notes { id, level, title, text, tone, ai, t }
   badges: {},            // "pin:<id>:<tier>" -> time earned (badges.js); older ids are kept but unused
   counters: {},          // { undo } for Pentimento
-  titles: [],            // history of "your eye" titles { title, t }
+  titles: [],
+  museumDay: null,       // { src, left, t } while a Museum Day is on
+  museumDays: {},        // src -> time a Museum Day there was finished            // history of "your eye" titles { title, t }
   level: 0,
   settings: { explore: 0.35, tone: "cheeky", sources: { aic: true, met: true, nga: true, cma: true, wd: true, vam: true, smk: true } },
   lastBackup: 0, backupCount: 0,
@@ -106,7 +108,7 @@ export function mergeSwipes(state, incoming) {
 
 export function backupPayload(state) {
   return { app: "picture-plane", ver: SCHEMA, exported: new Date().toISOString(), swipes: state.swipes, later: state.later,
-    seedIdx: state.seedIdx, notes: state.notes, badges: state.badges, settings: state.settings };
+    seedIdx: state.seedIdx, notes: state.notes, badges: state.badges, museumDays: state.museumDays, settings: state.settings };
 }
 
 // Accepts a Picture Plane backup, a Salon Swipe backup (file or SALON1: code), or a PP1: code.

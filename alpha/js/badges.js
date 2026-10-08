@@ -48,6 +48,7 @@ export function badgeStats(state, model) {
   const st = { decided: 0, loves: 0, keeps: 0, passes: 0, why: 0, styles: new Set(), cents: new Set(), countries: new Set(), keptContinents: new Set(),
     lovedCountries: new Set(), srcAny: {}, lovesBySrc: {}, onViewKeeps: 0, secondLook: 0, deepTime: false, wetPaint: false, bookends: false,
     sides: {}, runMax: 0, perDay: {}, afterHours: false, hotTake: false, lovesByArtist: {}, changeOfHeart: false,
+    days: Object.keys(state.museumDays || {}).length,
     undo: (state.counters && state.counters.undo) || 0, accuracy: model ? model.accuracy : null, eye: {}, total: sw.length };
   const passesByStyle = {}, keepsWindow = [];
   const oldest = new Date().getFullYear() - 2000;
@@ -161,6 +162,8 @@ export const BADGES = [
   { id: "museum-hopper", fam: "museums", name: "Museum Hopper", em: "ticket", how: "Judge works from different museums.", unit: "museums", tiers: [3, 5, 7], value: (s) => s.sources, fact: "Seven admissions, no coat check." },
   { id: "home-museum", fam: "museums", name: "Home Museum", em: "facade", how: "Love 15 works from one museum.", progress: (s) => ({ have: s.topSrc ? s.topSrc[1] : 0, need: 15 }), test: (s) => !!s.topSrc && s.topSrc[1] >= 15, fact: "Every serious looker has a home museum. Yours is the one you love most." },
   { id: "field-trip", fam: "museums", name: "Field Trip", em: "pin", how: "Keep 5 works that are on view right now.", progress: (s) => ({ have: s.onViewKeeps, need: 5 }), test: (s) => s.onViewKeeps >= 5, fact: "They're on a wall somewhere today. Go see one." },
+
+  { id: "day-tripper", fam: "museums", name: "Day Tripper", em: "ticket", how: "Finish a Museum Day: 20 works from one museum.", test: (s) => s.days >= 1, fact: "The Ashmolean in Oxford, often called the first public museum, opened in 1683. No timed tickets then either." },
 
   { id: "japonisme", fam: "lineage", name: "Japonisme", em: "wave", how: "Love an ukiyo-e print and an Impressionist painting.", test: both("ukiyo", "impressionist"), progress: halves("ukiyo", "impressionist", "ukiyo-e", "Impressionism"), fact: "The critic Philippe Burty named the craze in 1872. Monet, Degas and Van Gogh all collected Japanese prints." },
   { id: "copycat-empire", fam: "lineage", name: "Copycat Empire", em: "laurel", how: "Love a Greek work and a Roman one.", test: both("greek", "roman"), progress: halves("greek", "roman", "Greek", "Roman"), fact: "Many famous Greek bronzes survive only as Roman marble copies." },

@@ -331,6 +331,7 @@ test("Met search uses the paginated v1.1 endpoint (v1 was retired Oct 1, 2026)",
 /* ---------- 0.3: badge cabinet, place lexicon ---------- */
 import { BADGES, badgeStats, award, pinState, unsealedAt, reached, byId, eyeTitle, closest, understanding } from "../alpha/js/badges.js";
 import { placeOf } from "../alpha/js/geo.js";
+import { museumStats } from "../alpha/js/museums.js";
 const mkSw = (i, v, a = {}, extra = {}) => ({ uid: `t:${i}`, v, t: 1_700_000_000_000 + i * 60_000, f: [a.movement && `style|${a.movement}`, a.year != null && `cent|c${Math.floor(a.year / 100)}`].filter(Boolean), a: { uid: `t:${i}`, title: `W${i}`, ...a }, ...extra });
 
 test("place lexicon maps how museums describe place to modern countries", () => {
@@ -341,8 +342,8 @@ test("place lexicon maps how museums describe place to modern countries", () => 
   assert.deepEqual(placeOf("West Africa"), { iso: null, continent: "AF" }, "continent-only places count for continents, not countries");
 });
 
-test("cabinet: 46 pins, unique ids, every rule runs on an empty history", () => {
-  assert.equal(BADGES.length, 46); assert.equal(new Set(BADGES.map((b) => b.id)).size, 46);
+test("cabinet: 47 pins, unique ids, every rule runs on an empty history", () => {
+  assert.equal(BADGES.length, 47); assert.equal(new Set(BADGES.map((b) => b.id)).size, 47);
   const st = badgeStats({ swipes: [], badges: {} }, null);
   for (const b of BADGES) assert.equal(reached(b, st), 0, b.id);
 });
@@ -421,4 +422,16 @@ test("pattern pins: both ends of a trait earn a pin", () => {
   const steady = badgeStats({ swipes: Array.from({ length: 240 }, (_, i) => mkSw(i, 1, { movement: i % 2 ? "Baroque" : "Rococo" })), badges: {} }, null);
   assert.ok(reached(byId["tried-and-true"], steady) && reached(byId.patron, steady));
   assert.ok(reached(byId["snap-judgment"], steady), "never deferred or read a wall text");
+});
+
+test("museums: stamps dated by the tenth decision, keep rates that don't overreact", () => {
+  const sw = [];
+  for (let i = 0; i < 12; i++) sw.push(mkSw(i, i < 9 ? 1 : -1, { src: "nga" }));
+  for (let i = 12; i < 22; i++) sw.push(mkSw(i, -1, { src: "met" }));
+  sw.push(mkSw(30, 1, { src: "vam" }));
+  const ms = museumStats({ swipes: sw });
+  assert.equal(ms.by.nga.stampAt, sw[9].t, "stamped on the tenth decision");
+  assert.equal(ms.by.vam.stampAt, null); assert.equal(ms.home.src, "nga");
+  assert.equal(ms.ranked.length, 2, "a single V&A keep doesn't rank");
+  assert.ok(ms.by.met.score > 0, "zero keeps out of ten is pulled toward your overall rate");
 });

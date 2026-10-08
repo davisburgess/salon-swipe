@@ -54,6 +54,8 @@ export class Deck {
   /* ---------- sources ---------- */
   sources() {
     const on = this.state.settings.sources || {};
+    const day = this.state.museumDay;   // Museum Day: one museum only, while it's reachable
+    if (day && day.left > 0 && this.isAvailable(day.src)) return [day.src];
     return Object.keys(SRC_WEIGHT).filter((s) => on[s] !== false && this.isAvailable(s));
   }
   pickSource() {
@@ -92,7 +94,8 @@ export class Deck {
     if (this.loading) return this.loading;
     this.loading = (async () => {
       this.seedCursor = Math.max(this.seedCursor, this.state.seedIdx || 0);
-      if (this.seedCursor < OPENING.length) {
+      const onDay = this.state.museumDay && this.state.museumDay.left > 0;   // the opening hang waits during a Museum Day
+      if (!onDay && this.seedCursor < OPENING.length) {
         const seeds = OPENING.slice(this.seedCursor, this.seedCursor + 3);
         this.seedCursor += seeds.length;
         const got = await Promise.all(seeds.map((s) => this.fetchSeed(s)));
@@ -135,7 +138,8 @@ export class Deck {
   }
   topUp(n = 3) {
     while (this.queue.length < n) {
-      const nxt = this.seedBuf.shift() || this.pickFromPool();
+      const onDay = this.state.museumDay && this.state.museumDay.left > 0;
+      const nxt = (onDay ? null : this.seedBuf.shift()) || this.pickFromPool();
       if (!nxt) break;
       this.queue.push(nxt);
     }
@@ -181,3 +185,9 @@ export class Deck {
     return null;
   }
 }
+
+// Start a Museum Day: drop queued works from other museums so the next card is from this one.
+Deck.prototype.focusMuseum = function (src) {
+  this.queue = this.queue.filter((a) => a.src === src);
+  this.pool = this.pool.filter((a) => a.src === src);
+};

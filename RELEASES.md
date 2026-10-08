@@ -6,6 +6,29 @@ How every release ships:
 3. **GitHub re-runs everything on each push** (Actions, "Checks"), and probes the real museum APIs every morning, which the build workspace can't reach. A commit message containing `[live]` runs that probe immediately; every release commit uses it.
 4. **At most one small usability improvement per release,** listed here so you can veto it. Never a change to gestures, saved data, or anything you'd have to relearn without asking first.
 
+## 0.4.0-alpha (Oct 7, 2026)
+
+**Change requested by you: Museums.** Second of three Taste releases (the Atlas map is next).
+- **Your museum:** the museum whose work you keep most, compared with your overall keep rate. Rates are steadied until a museum has enough decisions, so three lucky keeps don't crown a museum.
+- **Passport:** each of the seven sources stamps your passport after 10 decisions there, dated by the decision that earned it. Your history counts, so existing stamps carry their real dates.
+- **How often you keep each museum's work:** all seven, ranked.
+- **On view now:** how many of your keeps were on a gallery wall when you saw them, by city, with a button to see them in Kept.
+- **Museum Day:** pick a museum and your next 20 works come only from it (the opening hang waits). Each card says how many are left. Finishing gilds that museum's stamp and earns a new pin, **Day Tripper** (47 pins now). You can end the day early from Taste.
+- The jump bar gains **Museums**: Portrait, Badges, Museums, Leanings.
+
+**Bug you reported: zooming on a Mac**
+- The full-size view used the browser's own scrolling, so a two-finger sideways swipe that reached the picture's edge became Back or Forward. It now has its own pan and zoom: two-finger scroll pans, pinch zooms around your fingers, click zooms in where you clicked (and out again), drag pans, and arrow and +/- keys work. None of it reaches the browser.
+- The whole app no longer hands sideways swipes to the browser as navigation.
+
+**Review found and fixed**
+- Arrow keys pressed while the full-size view was open acted on the work behind it (deciding on it). They now move the picture.
+- After jumping to a lower section, the jump bar could highlight the wrong one, because the page couldn't scroll far enough. The tapped section now stays highlighted, and the page has room at the bottom.
+- Kept's "On view in Chicago" filter is now "On view" across every museum that reports it.
+
+**Checks:** 47 unit and backend tests (new: museum stats), 42 of 42 browser checks, twice in a row (new: museums.day; wall.zoom now tests sideways scrolling, keys and zoom-out).
+**On your Mac:** open a wall text, click the picture, zoom in, and two-finger swipe left and right; it should pan, never go Back. Pinch to zoom.
+**On your phone:** Taste, then Museums: check your stamps' dates, then start a Museum Day and finish it.
+
 ## 0.3.2-alpha (Oct 7, 2026)
 
 **Change requested by you: separate what you do from how well the app knows you.** A weak model should never cost you a level.

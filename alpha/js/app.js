@@ -7,6 +7,7 @@ import { TasteModel, features } from "./model.js";
 import { Deck, MAX_DEFERS } from "./deck.js";
 import { load, save, saveFailed, record, STORE_KEY, mergeSwipes, backupPayload, parseBackup, encodeCode, fromSalonSwipe, compact } from "./store.js";
 import { stats, levelFor, LEVELS, LEVEL_SCALE, profileFacts, templateNote } from "./rewards.js";
+import { museumStats, stampSVG, dayActive, DAY_LENGTH, STAMP_AT } from "./museums.js";
 import { BADGES, FAMILIES, TIERS, APP_RUNGS, badgeStats, award, unsealedAt, pinState, closest, eyeTitle, pinSVG, ensureDefs, tierName, byId as badgeById } from "./badges.js";
 import * as api from "./sync.js";
 import { analyze } from "./vision.js";
@@ -86,6 +87,7 @@ function cueFor(a) {
   if (a._look) return a._look >= MAX_DEFERS
     ? { k: "look", text: "Last look. Choosing Later again marks it undecided." }
     : { k: "look", text: "Second look. The wall text is open to help you decide." };
+  if (dayActive(state) && a.src === state.museumDay.src) return { k: "seed", text: `Museum Day at the ${MUSEUMS[a.src].name}: ${state.museumDay.left} to go` };
   if (a._why === "newstyle" && a._seed) return { k: "seed", text: `New style: ${a._seed.label}, ${a._seed.years}`, sub: a._seed.why };
   if (a._seed) { const i = OPENING.findIndex((o) => o.id === a._seed.id) + 1;
     return { k: "seed", text: `Opening hang ${i} of ${OPENING.length}: ${a._seed.label}, ${a._seed.years}`, sub: a._seed.why }; }
@@ -243,6 +245,8 @@ function decide(v, vel) {
   if (predicted != null && v !== 0) rec.p = Math.round(predicted * 100) / 100;   // for "Called it"
   rec.m = a._look ? "look" : a._seed ? "seed" : a._why || null;   // how the card was picked, so the app is scored fairly
   if (a._look) rec.look = a._look;
+  const day = state.museumDay;
+  if (day && day.left > 0 && a.src === day.src) { day.left--; if (!day.left) finishDay(day.src); }
   markSeedSeen(a);
   model.learn(rec.f, v);
   deck.markSeen(a); deck.queue.shift(); deck.releaseLater(); deck.topUp();
@@ -324,6 +328,14 @@ $("#btnNewStyle").onclick = async (e) => {
 };
 addEventListener("keydown", (e) => {
   if (e.key === "Escape") { closeSheet(); closeZoom(); hideWhy(); closeModal(); return; }
+  // While the full-size view is open, keys move the picture, never the deck behind it.
+  if (!zoom.hidden) {
+    const step = 80, k = { ArrowLeft: () => zPan(step, 0), ArrowRight: () => zPan(-step, 0), ArrowUp: () => zPan(0, step), ArrowDown: () => zPan(0, -step),
+      "+": () => zoomAt(zoom.clientWidth / 2, zoom.clientHeight / 2, Z.s * 1.4), "=": () => zoomAt(zoom.clientWidth / 2, zoom.clientHeight / 2, Z.s * 1.4),
+      "-": () => zoomAt(zoom.clientWidth / 2, zoom.clientHeight / 2, Z.s / 1.4), "0": () => { Z.s = 1; zClamp(); zApply(); } }[e.key];
+    if (k) { e.preventDefault(); k(); }
+    return;
+  }
   if (currentView !== "look" || !$("#modal").hidden || e.target.closest("input,textarea,select")) return;
   // Deciding while the wall text is open closes it and acts on the work you were reading about.
   if (!$("#sheet").hidden) { if (!/^Arrow/.test(e.key)) return; closeSheet(); }
@@ -523,10 +535,62 @@ scrim.onclick = closeSheet; $("#sheetDone").onclick = closeSheet;
   sheet.addEventListener("touchstart", (e) => { y0 = sheet.scrollTop <= 0 ? e.touches[0].clientY : null; }, { passive: true });
   sheet.addEventListener("touchend", (e) => { if (y0 != null && e.changedTouches[0].clientY - y0 > 90) closeSheet(); y0 = null; });
 })();
-const zoom = $("#zoom");
-function openZoom(a) { $("#zoomImg").src = a.imageLarge || a.image; zoom.classList.remove("big"); zoom.hidden = false; }
-function closeZoom() { zoom.hidden = true; }
-$("#zoomImg").onclick = () => zoom.classList.toggle("big");
+// Full-size view with its own pan and zoom. The browser's scrolling isn't used here: on a Mac, a two-finger swipe that
+// reached the image's edge was handed to the browser as Back/Forward. Every wheel and touch gesture is ours instead.
+const zoom = $("#zoom"), zimg = $("#zoomImg");
+const Z = { s: 1, x: 0, y: 0, w: 0, h: 0, ptrs: new Map(), moved: 0, pinch: null };
+const ZMAX = 6;
+function zFit() {
+  const vw = zoom.clientWidth, vh = zoom.clientHeight, nw = zimg.naturalWidth || 1, nh = zimg.naturalHeight || 1;
+  const r = Math.min(vw / nw, vh / nh); Z.w = nw * r; Z.h = nh * r;
+  zimg.style.width = `${Z.w}px`; zimg.style.height = `${Z.h}px`;
+  Z.s = 1; zClamp(); zApply();
+}
+function zClamp() {
+  const vw = zoom.clientWidth, vh = zoom.clientHeight, w = Z.w * Z.s, h = Z.h * Z.s;
+  Z.x = w <= vw ? (vw - w) / 2 : clamp(Z.x, vw - w, 0);
+  Z.y = h <= vh ? (vh - h) / 2 : clamp(Z.y, vh - h, 0);
+}
+function zApply() { zimg.style.transform = `translate(${Z.x}px, ${Z.y}px) scale(${Z.s})`; zoom.classList.toggle("big", Z.s > 1.01); }
+function zoomAt(px, py, ns) {
+  ns = clamp(ns, 1, ZMAX);
+  Z.x = px - (px - Z.x) * (ns / Z.s); Z.y = py - (py - Z.y) * (ns / Z.s); Z.s = ns; zClamp(); zApply();
+}
+function zPan(dx, dy) { Z.x += dx; Z.y += dy; zClamp(); zApply(); }
+function openZoom(a) {
+  zoom.hidden = false; Z.s = 1;
+  zimg.onload = zFit; zimg.src = a.imageLarge || a.image;
+  if (zimg.complete && zimg.naturalWidth) zFit();
+}
+function closeZoom() { zoom.hidden = true; Z.ptrs.clear(); }
+addEventListener("resize", () => { if (!zoom.hidden) zFit(); });
+// Trackpad: two-finger scroll pans, pinch (sent as ctrl+wheel) zooms. Never passed on to the browser.
+zoom.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  const unit = e.deltaMode === 1 ? 16 : 1;
+  if (e.ctrlKey) zoomAt(e.clientX, e.clientY, Z.s * Math.exp(-e.deltaY * unit * 0.01));
+  else if (Z.s > 1.01) zPan(-e.deltaX * unit, -e.deltaY * unit);
+}, { passive: false });
+zimg.addEventListener("pointerdown", (e) => {
+  e.preventDefault(); zimg.setPointerCapture(e.pointerId);
+  Z.ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); Z.moved = 0;
+  if (Z.ptrs.size === 2) { const [a, b] = [...Z.ptrs.values()]; Z.pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), s: Z.s }; }
+});
+zimg.addEventListener("pointermove", (e) => {
+  const p = Z.ptrs.get(e.pointerId); if (!p) return;
+  const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY; Z.moved += Math.abs(dx) + Math.abs(dy);
+  if (Z.ptrs.size === 2 && Z.pinch) { const [a, b] = [...Z.ptrs.values()]; zoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, Z.pinch.s * Math.hypot(a.x - b.x, a.y - b.y) / Z.pinch.d); }
+  else if (Z.s > 1.01) zPan(dx, dy);
+});
+const zUp = (e) => {
+  if (!Z.ptrs.has(e.pointerId)) return;
+  const tap = Z.ptrs.size === 1 && Z.moved < 6 && !Z.pinch;
+  Z.ptrs.delete(e.pointerId); if (Z.ptrs.size < 2) Z.pinch = Z.ptrs.size ? Z.pinch : null;
+  if (tap && e.type === "pointerup") { if (Z.s > 1.01) { Z.s = 1; zClamp(); zApply(); } else zoomAt(e.clientX, e.clientY, 2.5); }
+  if (!Z.ptrs.size) Z.pinch = null;
+};
+zimg.addEventListener("pointerup", zUp); zimg.addEventListener("pointercancel", zUp);
+zimg.addEventListener("dragstart", (e) => e.preventDefault());
 $("#zoomClose").onclick = closeZoom;
 
 /* ---------- modal ---------- */
@@ -620,12 +684,15 @@ function renderTaste() {
     ${whyHTML}
     ${und.length ? `<section class="dim"><h3>Left you undecided</h3><ul class="plain">${und.map((x) => `<li><cite>${esc(x.a.title)}</cite>, ${esc(x.a.artist || "unknown maker")}</li>`).join("")}</ul></section>` : ""}</section>`;
 
-  scroller.innerHTML = `<nav class="jump" aria-label="Taste sections">${[["t-portrait", "Portrait"], ["t-badges", "Badges"], ["t-leanings", "Leanings"]].map(([id, l], i) => `<a href="#${id}" data-jump="${id}" ${i === 0 ? 'aria-current="true"' : ""}>${l}</a>`).join("")}</nav>
-    <div class="page">${portrait}${badges}${leanings}</div>`;
+  scroller.innerHTML = `<nav class="jump" aria-label="Taste sections">${[["t-portrait", "Portrait"], ["t-badges", "Badges"], ["t-museums", "Museums"], ["t-leanings", "Leanings"]].map(([id, l], i) => `<a href="#${id}" data-jump="${id}" ${i === 0 ? 'aria-current="true"' : ""}>${l}</a>`).join("")}</nav>
+    <div class="page">${portrait}${badges}${museumsHTML()}${leanings}</div>`;
   scroller.scrollTop = keepScroll;
 
   $$("[data-jump]", scroller).forEach((a) => (a.onclick = (e) => { e.preventDefault(); jumpTo(a.dataset.jump); }));
   $$("[data-pin]", scroller).forEach((el) => (el.onclick = () => openPin(el.dataset.pin)));
+  $$("[data-day]", scroller).forEach((b) => (b.onclick = () => startDay(b.dataset.day)));
+  const endB = $("#dayEnd", scroller); if (endB) endB.onclick = () => endDay();
+  const ov = $("#seeOnView", scroller); if (ov) ov.onclick = () => { keptFilter = "onview"; show("kept"); };
   scroller.onscroll = spyTaste; spyTaste();
   $("#toneSel").onchange = (e) => { state.settings.tone = e.target.value; persist({ meta: true }); };
   $("#noteNow").onclick = async (e) => {
@@ -636,17 +703,20 @@ function renderTaste() {
     await makeNote(null); renderTaste();
   };
 }
+let spyLock = 0;
 function jumpTo(id) {
   const sc = $("#view-taste"), el = document.getElementById(id); if (!el) return;
+  spyLock = Date.now() + 900;   // the section you tapped stays highlighted while the page scrolls to it
+  $$("[data-jump]", sc).forEach((a) => (a.dataset.jump === id ? a.setAttribute("aria-current", "true") : a.removeAttribute("aria-current")));
   const nav = $(".jump", sc), off = nav ? nav.offsetHeight + 4 : 0;
   sc.scrollTo({ top: el.offsetTop - off, behavior: reduceMotion ? "auto" : "smooth" });
 }
 // Highlight the section you're reading.
 function spyTaste() {
-  const sc = $("#view-taste"), nav = $(".jump", sc); if (!nav) return;
+  const sc = $("#view-taste"), nav = $(".jump", sc); if (!nav || Date.now() < spyLock) return;
   const y = sc.scrollTop + nav.offsetHeight + 40;
   let cur = "t-portrait";
-  for (const id of ["t-portrait", "t-badges", "t-leanings"]) { const el = document.getElementById(id); if (el && el.offsetTop <= y) cur = id; }
+  for (const id of ["t-portrait", "t-badges", "t-museums", "t-leanings"]) { const el = document.getElementById(id); if (el && el.offsetTop <= y) cur = id; }
   if (sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 4) cur = "t-leanings";
   $$("[data-jump]", nav).forEach((a) => (a.dataset.jump === cur ? a.setAttribute("aria-current", "true") : a.removeAttribute("aria-current")));
 }
@@ -671,19 +741,67 @@ function openPin(id) {
   $("#modalOk").onclick = closeModal;
 }
 
+/* ---------- Museums ---------- */
+function museumsHTML() {
+  const ms = museumStats(state), on = state.settings.sources || {};
+  const pct = (x) => `${Math.round(x * 100)}%`;
+  const day = dayActive(state) ? state.museumDay : null;
+  const order = Object.keys(MUSEUMS).sort((a, b) => (ms.by[b].stampAt ? 1 : 0) - (ms.by[a].stampAt ? 1 : 0) || (ms.by[a].stampAt || 0) - (ms.by[b].stampAt || 0));
+  const stamps = order.map((k) => `<figure>${stampSVG(k, ms.by[k])}</figure>`).join("");
+  const rows = [...ms.ranked, ...Object.values(ms.by).filter((m) => m.decided < STAMP_AT).sort((a, b) => b.decided - a.decided)]
+    .map((m) => `<div class="mrow ${m.decided < STAMP_AT ? "few" : ""}"><span class="n">${esc(MUSEUMS[m.src].name)}</span>
+      ${m.decided >= STAMP_AT ? `<span class="bar"><i class="pos" style="left:0;width:${Math.round(m.keepRate * 100)}%"></i></span><span class="c">${pct(m.keepRate)}</span>` : `<span class="c wide">${m.decided} so far</span>`}</div>`).join("");
+  const views = Object.values(ms.by).filter((m) => m.onView).sort((a, b) => b.onView - a.onView);
+  const city = (k) => ({ aic: "Chicago", met: "New York", nga: "Washington", cma: "Cleveland", vam: "London", smk: "Copenhagen" }[k] || MUSEUMS[k].short);
+  return `<section id="t-museums" class="tsec"><h2 class="sech">Museums</h2>
+    ${ms.home ? `<p class="kicker">Your museum</p><h3 class="home">${esc(MUSEUMS[ms.home.src].name)}</h3>
+      <p class="small">You keep ${pct(ms.home.keepRate)} of what it shows you, against ${pct(ms.base)} overall.</p>` : `<p class="small muted">Your museum appears once you've judged ${STAMP_AT} works from one.</p>`}
+    <p class="kicker">Passport</p><div class="stamps">${stamps}</div>
+    <p class="small muted">A museum stamps your passport after ${STAMP_AT} decisions there. Finish a Museum Day and its stamp gets a gilt border.</p>
+    <p class="kicker">How often you keep each museum's work</p><div class="mrows">${rows}</div>
+    ${views.length ? `<p class="kicker">On view now</p><p class="small">${views.map((m) => `<b>${m.onView}</b> of your keeps in ${esc(city(m.src))}`).join(" · ")}.</p><button class="btn small" id="seeOnView" type="button">See them in Kept</button>` : ""}
+    <div class="museumday">
+      <p class="kicker">Museum Day</p>
+      ${day ? `<p class="small">You're spending the day at the <b>${esc(MUSEUMS[day.src].name)}</b>: ${day.left} of ${DAY_LENGTH} to go.</p><button class="btn small" id="dayEnd" type="button">End the day early</button>`
+        : `<p class="small">Spend your next ${DAY_LENGTH} works at one museum. Finish to gild its stamp.</p>
+          <div class="daybtns">${Object.keys(MUSEUMS).filter((k) => on[k] !== false).map((k) => `<button class="chip" type="button" data-day="${k}">${esc(MUSEUMS[k].short)}</button>`).join("")}</div>`}
+    </div></section>`;
+}
+function startDay(src) {
+  if (!isAvailable(src)) { toast(`The ${MUSEUMS[src].name} isn't answering right now. Try another museum.`); return; }
+  state.museumDay = { src, left: DAY_LENGTH, t: Date.now() }; persist({ meta: true });
+  deck.focusMuseum(src); show("look");
+  toast(`Museum Day at the ${MUSEUMS[src].name}. ${DAY_LENGTH} works.`);
+  deck.refill().then(() => { deck.topUp(); renderStage(); });
+}
+function endDay() {
+  state.museumDay = null; persist({ meta: true }); toast("Museum Day ended. Back to every museum.");
+  renderTaste();
+}
+function finishDay(src) {
+  state.museumDays = state.museumDays || {}; state.museumDays[src] = Date.now(); state.museumDay = null;
+  setTimeout(() => {
+    openModal(`<p class="kicker">Museum Day complete</p><h2>${esc(MUSEUMS[src].name)}</h2>
+      <div class="pinhead">${stampSVG(src, museumStats(state).by[src])}</div>
+      <p>Twenty works, one museum. Its passport stamp now has a gilt border. Back to every museum from here.</p>
+      <button class="btn primary" id="modalOk">Keep looking</button>`);
+    $("#modalOk").onclick = closeModal;
+  }, 700);
+}
+
 /* ---------- Kept ---------- */
 let keptFilter = "all";
 // Kept tiles load smaller images where the server can resize (IIIF and Commons).
 function thumb(a) { return (a.image || "").replace("/full/843,/", "/full/400,/").replace("/full/!900,900/", "/full/!400,400/").replace(/\?width=900$/, "?width=400") || null; }
 function renderKept() {
   const all = state.swipes.filter((s) => s.v > 0).slice().reverse();
-  const list = keptFilter === "loved" ? all.filter((s) => s.v === 2) : keptFilter === "chicago" ? all.filter((s) => s.a.src === "aic" && s.a.onView) : all;
+  const list = keptFilter === "loved" ? all.filter((s) => s.v === 2) : keptFilter === "onview" ? all.filter((s) => s.a.onView) : all;
   $("#view-kept").innerHTML = `<div class="page">
     <h1 class="display small">Kept</h1>
     <div class="filters" role="group" aria-label="Filter">
-      ${[["all", `All (${all.length})`], ["loved", `Loved (${all.filter((s) => s.v === 2).length})`], ["chicago", "On view in Chicago"]].map(([k, l]) => `<button class="chip" aria-pressed="${keptFilter === k}" data-f="${k}">${l}</button>`).join("")}
+      ${[["all", `All (${all.length})`], ["loved", `Loved (${all.filter((s) => s.v === 2).length})`], ["onview", `On view (${all.filter((s) => s.a.onView).length})`]].map(([k, l]) => `<button class="chip" aria-pressed="${keptFilter === k}" data-f="${k}">${l}</button>`).join("")}
     </div>
-    ${keptFilter === "chicago" ? `<p class="muted small">On view when you saw it. Galleries change, so check the museum site before a visit.</p>` : ""}
+    ${keptFilter === "onview" ? `<p class="muted small">On view when you saw it. Galleries change, so check the museum's site before a visit.</p>` : ""}
     ${list.length ? `<ul class="grid">${list.map((s, i) => `<li class="tile-wrap"><button class="tile" data-i="${i}"><img loading="lazy" src="${esc(thumb(s.a))}" alt=""><span class="t"><cite>${esc(s.a.title)}</cite></span><span class="a">${esc(s.a.artist || "Unknown maker")}</span></button>${loveBtn(s)}</li>`).join("")}</ul>`
       : `<p class="muted">Nothing here yet. Swipe right on a work to keep it.</p>`}
   </div>`;
@@ -795,6 +913,7 @@ function absorb(d) {
   if (Number.isFinite(d.seedIdx)) state.seedIdx = Math.max(state.seedIdx, d.seedIdx);
   if (Array.isArray(d.notes)) { const ids = new Set(state.notes.map((n) => n.id)); state.notes = state.notes.concat(d.notes.filter((n) => n && !ids.has(n.id))); }
   if (d.badges) state.badges = { ...d.badges, ...state.badges };
+  if (d.museumDays) state.museumDays = { ...d.museumDays, ...(state.museumDays || {}) };
   state.sync.dirty.push(...(d.swipes || []).map((s) => s.uid));
   model.fit(state.swipes); deck.rebuildKeys();
   deck.queue = deck.queue.filter((a) => !state.seen[a.uid]); deck.pool = deck.pool.filter((a) => !state.seen[a.uid]);
