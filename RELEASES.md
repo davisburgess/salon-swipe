@@ -6,6 +6,25 @@ How every release ships:
 3. **GitHub re-runs everything on each push** (Actions, "Checks"), and probes the real museum APIs every morning, which the build workspace can't reach. A commit message containing `[live]` runs that probe immediately; every release commit uses it.
 4. **At most one small usability improvement per release,** listed here so you can veto it. Never a change to gestures, saved data, or anything you'd have to relearn without asking first.
 
+## 0.7.2-alpha (Oct 8, 2026)
+
+**Bug you reported: during "Works from China", a few cards weren't from China, and some were English art of China rather than Chinese art.** Two causes: one in our code, one in how we read museum labels.
+
+**1. Code: three side doors let cards skip the quest filter.** The quest's own card supply filters strictly. These three paths bypassed it:
+- **Later.** A work you'd swiped "Later" before the quest came back a few cards on, quest or not. Later works that don't fit now wait until the quest ends, and nothing is lost. Reproduced in the browser checks: 0.7.1 lets a French work into the China quest, and 0.7.2 holds it back.
+- **New style.** The button drops in a work from a random movement. It's now hidden while a quest runs.
+- **Undo** was checked and is fine: it only returns a card you just swiped.
+
+**2. Labels: "from China" meant where the work was made, or even what it showed.**
+- **The Met.** The Met's country field sometimes records where a scene is set ("Depicted"), not where the work was made. A British print of Canton harbor arrived labeled China. Depicted places are now ignored.
+- **Maker first.** Several museums label works made in China by Europeans as China. Cleveland lists Castiglione's Qing court paintings, by an Italian Jesuit, as "China, Qing dynasty". "From China" now means made by a Chinese maker: the artist's nationality wins, and the museum's place of origin applies only to anonymous works.
+- **This also corrects museum errors.** Cleveland lists Lai Fong, a Chinese photographer, as "England". He now counts as Chinese.
+- **Effect on your history:** the change applies to the device collections and to your past swipes, so the Atlas and the country pins update too. Across 46,600 device works, about 900 change country, mostly Flemish/Dutch and French/Swiss boundary cases plus European émigrés. China goes from 2,288 to 2,285 works.
+
+**Still possible:** an anonymous work that a museum mislabels. Where a museum gives no maker and the wrong place, the app has nothing better to go on.
+
+**Checks:** 60 unit and backend tests (new: maker before place, Met depicted places, China quest rejects a European painter of China), 45 of 45 browser checks (quests.supply now adds a non-China Later work mid-quest and requires the next cards to stay Chinese, with New style hidden).
+
 ## 0.7.1-alpha (Oct 8, 2026)
 
 **Bug you reported: a recommended quest ("Works from China") dropped you out, saying it couldn't find enough works.** There were 2,288 works from China on your device.

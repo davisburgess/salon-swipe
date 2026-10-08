@@ -178,9 +178,11 @@ export class Deck {   // options: { state, model, search, isAvailable, sampleLoc
   /* ---------- Later ---------- */
   releaseLater() {
     const done = this.state.swipes.length, later = this.state.later || [];
-    const due = later.filter((l) => l.due <= done);
+    // During a quest, works set aside for Later that don't count wait until it's over.
+    const q = this.quest(), ok = (l) => l.due <= done && (!q || questMatches(q, l.a));
+    const due = later.filter(ok);
     if (!due.length) return;
-    this.state.later = later.filter((l) => l.due > done);
+    this.state.later = later.filter((l) => !ok(l));
     this.queue.splice(Math.min(1, this.queue.length), 0, ...due.map((l) => ({ ...l.a, _look: l.n + 1 })));
   }
   defer(card) {

@@ -462,6 +462,11 @@ await check("quests.supply", async () => {
   expect(/Works from China · 0 of 20/.test(await p.textContent("#questBar")), `bar: ${await p.textContent("#questBar")}`);
   for (let i = 0; i < 6; i++) { await waitTop(p); const a = await pp(p, () => ({ place: __pp.deck.queue[0].place, src: __pp.deck.queue[0].src })); expect(/China|Chinese/.test(a.place || ""), `card ${i} from ${a.place} (${a.src})`); await press(p, "ArrowRight"); }
   const s = await store(p); expect(s.quest && s.quest.left === 14, `quest state ${JSON.stringify(s.quest && { left: s.quest.left })}`);
+  // Side doors stay shut during a quest: a work set aside for Later that isn't from China waits, and New style steps aside.
+  expect(await p.isHidden("#btnNewStyle"), "New style still offered during a quest");
+  await pp(p, () => { __pp.state.later.push({ a: { uid: "aic:999001", src: "aic", title: "Not China", place: "France", kind: "Painting", year: 1880, image: "x" }, n: 1, due: 0 }); });
+  for (let i = 0; i < 3; i++) { await press(p, "ArrowRight"); await waitTop(p); const pl = await pp(p, () => __pp.deck.queue.map((a) => a.place)); expect(pl.every((x) => /China|Chinese/.test(x || "")), `a non-China work slipped in: ${pl.join(" / ")}`); }
+  expect((await store(p)).later.some((l) => l.a.uid === "aic:999001"), "the held Later work was lost");
   await ctx.close();
 });
 

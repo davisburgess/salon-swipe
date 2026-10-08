@@ -64,7 +64,8 @@ export function normalizeMet(r) {
     title: clean(r.title) || "Untitled", artist: clean(r.artistDisplayName) || null,
     artistBio: clean([r.artistNationality, r.artistDisplayBio].filter(Boolean).join(", ")) || null,
     date: clean(r.objectDate) || null, year: Number.isFinite(r.objectBeginDate) ? r.objectBeginDate : null,
-    place: clean(r.country || r.culture || r.region) || null, medium: clean(r.medium) || null,
+    // The Met's country/region can be where a scene is set ("Depicted"), not where the work was made; skip those.
+    place: clean(r.culture || (/depict/i.test(r.geographyType || "") ? "" : r.country || r.region)) || null, medium: clean(r.medium) || null,
     mediumFamily: mediumFamily(r.medium), kind: clean(r.classification || r.objectName) || null,
     movement: period || null, subjects: (r.tags || []).map((t) => t && t.term).filter(Boolean).slice(0, 5),
     color: null, image: r.primaryImageSmall, imageLarge: r.primaryImage || r.primaryImageSmall,

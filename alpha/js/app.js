@@ -865,6 +865,8 @@ function finishQuest(q) {
 }
 function renderQuestBar() {
   const bar = $("#questBar"), q = activeQuest(); if (!bar) return;
+  // New style would drop in a work from outside the quest, so it steps aside while one runs.
+  const ns = $("#btnNewStyle"); if (ns) { ns.hidden = !!q; if (ns.nextElementSibling) ns.nextElementSibling.hidden = !!q; }
   bar.hidden = !q; if (!q) return;
   $("#questText").textContent = `${q.label} · ${q.total - q.left} of ${q.total}`;
 }

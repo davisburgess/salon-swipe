@@ -155,7 +155,11 @@ export function placeOf(text) {
 }
 
 // Best available place for a work: where it was made, then the maker's nationality, then the place token in its features.
+// "Art from China" means art by Chinese makers: the maker's nationality wins over where the work was made or what it
+// shows (Castiglione at the Qing court is Italian; a British photographer's view of Canton is British). Anonymous
+// works, and sources without a maker's nationality, fall back to the museum's place of origin.
 export function geoOf(a, f) {
   const fromF = (f || []).find((t) => t.startsWith("place|"));
-  return placeOf(a && a.place) || placeOf(a && a.artistBio) || (fromF ? placeOf(fromF.slice(6)) : null);
+  const bio = placeOf(a && a.artistBio);
+  return (bio && bio.iso ? bio : null) || placeOf(a && a.place) || bio || (fromF ? placeOf(fromF.slice(6)) : null);
 }
