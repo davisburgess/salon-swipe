@@ -5,7 +5,9 @@ import { canonMovement, schoolOf, typeOf } from "../alpha/js/vocab.js";
 import { placeOf } from "../alpha/js/geo.js";
 import { TasteModel, features, driftFromHistory } from "../alpha/js/model.js";
 import { choose, retrieve } from "../alpha/js/recommend.js";
-import { matches, label, queries, newQuest, questForBadge, suggestions, critFromBuilder } from "../alpha/js/quests.js";
+import { matches, label, queries, newQuest, questForBadge, suggestions, critFromBuilder, digestCount, digestMatches, facts } from "../alpha/js/quests.js";
+import { readFileSync } from "node:fs";
+import { normalizeStatic } from "../alpha/js/sources.js";
 import { badgeStats } from "../alpha/js/badges.js";
 
 test("vocabulary: one name per movement, a school for every work, a short list of types", () => {
@@ -84,10 +86,43 @@ test("quests: badges point at the quest that moves them forward", () => {
   const st = badgeStats({ swipes: sw, badges: {} }, null), none = () => 0;
   const jq = questForBadge("japonisme", st, {}, none);
   assert.deepEqual(jq.crit, { movement: "Impressionism" }); assert.match(jq.why, /finish Japonisme/);
+  const uq = questForBadge("japonisme", { ...st, sides: { impressionist: true } }, {}, none);
+  assert.equal(uq.label, "Ukiyo-e prints"); assert.ok(matches(newQuest({ swipes: [] }, uq.crit, 20), work(9, { place: "Japan, Edo period", year: 1830, kind: "Print" })), "an unlabelled Edo print counts, as it does for the pin");
   assert.deepEqual(questForBadge("silk-road", st, {}, none).crit, { iso: "CN" });
   assert.ok(questForBadge("passport", st, {}, none).crit.newCountry);
   assert.equal(questForBadge("japonisme", { ...st, sides: { ukiyo: true, impressionist: true } }, {}, none), null, "nothing left to do");
   const sg = suggestions({ swipes: sw }, null, st, none);
   assert.ok(sg.badge.length >= 1 && sg.badge[0].goal === "japonisme", "a half-finished pair comes first");
   assert.ok(sg.fresh.some((x) => x.crit.newCountry));
+});
+
+const digest = JSON.parse(readFileSync(new URL("../alpha/data/digest.json", import.meta.url), "utf8"));
+test("quest supply: the digest matches the collections, record for record", () => {
+  for (const src of ["nga", "cma"]) {
+    const idx = JSON.parse(readFileSync(new URL(`../alpha/data/${src}/index.json`, import.meta.url), "utf8"));
+    assert.equal(digest.srcs[src].count, idx.count, `${src} digest is stale: rebuild with node tools/build_digest.mjs`);
+    // Spot-check: the facts in the digest are the facts quests use on the real record.
+    const shard = JSON.parse(readFileSync(new URL(`../alpha/data/${src}/shard-003.json`, import.meta.url), "utf8"));
+    for (const k of [0, 57, 199]) {
+      const pos = 3 * idx.shardSize + k, f = facts(normalizeStatic(src, shard[k]) || {}), c = digest.srcs[src].cols, get = (n) => (c[n][pos] < 0 ? null : digest.dicts[n][c[n][pos]]);
+      assert.deepEqual([get("iso"), get("school"), get("type"), c.year[pos]], [f.iso, f.school, f.type, f.year], `${src} record ${pos}`);
+    }
+  }
+});
+
+test("quest supply: every quest the board can suggest has the works on this device, before the live museums", () => {
+  const empty = { swipes: [] };
+  // The China quest that failed in 0.7.0 has thousands of works.
+  assert.ok(digestCount(digest, newQuest(empty, { iso: "CN" }, 20), empty) > 1000);
+  // Every badge-linked criterion the board can suggest either has 20+ works here, or is one the live museums must fill.
+  const st = { sides: {}, keptContinents: new Set(), lovedCountries: new Set(), nCountries: 0, range: 0, centuries: 0, decided: 0 };
+  const ids = ["japonisme", "copycat-empire", "gold-standard", "brotherhood", "crossed-paths", "back-to-the-future", "silk-road", "all-six", "deep-time", "wet-paint", "passport", "grand-tour", "time-machine"];
+  const thin = [];
+  for (const id of ids) {
+    const q = questForBadge(id, st, empty, () => 0); if (!q) continue;
+    const n = digestCount(digest, newQuest(empty, q.crit, q.total), empty);
+    if (n < q.total) thin.push(`${id} ${JSON.stringify(q.crit)}: ${n}`);
+  }
+  // Known: these come only from the live museums (Wikidata, V&A), which the app checks before offering them.
+  assert.deepEqual(thin.map((x) => x.split(" ")[0]).sort(), ["brotherhood", "crossed-paths"], thin.join("; "));
 });

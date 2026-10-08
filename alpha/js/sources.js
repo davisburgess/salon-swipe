@@ -190,6 +190,17 @@ const loadShard = (src, n) => {
   }
   return staticShards[key];
 };
+// The catalog digest: a few facts for every on-device work, for counting and fetching quest works.
+let digestP = null;
+export const loadDigest = () => (digestP ||= getJSON(`${STATIC_BASE}digest.json`, 20000).catch((e) => { digestP = null; throw e; }));
+// Specific works from a static collection by position, loading only the shards they're in.
+export async function loadStaticAt(src, positions) {
+  const idx = await loadIndex(src), by = new Map();
+  for (const p of positions) { const sh = Math.floor(p / idx.shardSize); if (!by.has(sh)) by.set(sh, []); by.get(sh).push(p % idx.shardSize); }
+  const out = [];
+  await Promise.all([...by.entries()].map(async ([sh, list]) => { const recs = await loadShard(src, sh).catch(() => []); for (const k of list) { const a = recs[k] && normalizeStatic(src, recs[k]); if (a) out.push(a); } }));
+  return out;
+}
 // A random slice of a static collection, for the recommender to score on the device (recommend.js retrieve).
 export async function sampleLocal(src, { shards = 1 } = {}) {
   const idx = await loadIndex(src);

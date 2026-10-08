@@ -8,7 +8,7 @@ on:
     - cron: "41 9 3 * *"   # 3rd of each month
   push:
     branches: [main]
-    paths: ["tools/build_nga.py", "tools/build_cma.py", ".github/workflows/build-data.yml"]   # not build_world.py, which builds the map
+    paths: ["tools/build_nga.py", "tools/build_cma.py", "tools/build_digest.mjs", ".github/workflows/build-data.yml"]   # not build_world.py, which builds the map
 
 permissions:
   contents: write
@@ -32,6 +32,7 @@ jobs:
         run: |
           python3 tools/build_nga.py /tmp/nga/data | tee -a "$GITHUB_STEP_SUMMARY"
           python3 tools/build_cma.py /tmp/cma/data.json | tee -a "$GITHUB_STEP_SUMMARY"
+          node tools/build_digest.mjs | tee -a "$GITHUB_STEP_SUMMARY"   # quest supply index, from the app's own code
       - name: Commit
         run: |
           git config user.name "github-actions[bot]"

@@ -65,7 +65,7 @@ export const FEATURES = [
   { id: "reco.lab", name: "Simulation lab: the new engine must beat the old one", where: ["tests/reco-sim.mjs", "alpha/js/recommend.js", "alpha/js/model.js"],
     checks: ["unit:simulation lab: the new engine beats the old one"] },
   { id: "quests", name: "Quests: board with badge-linked, deeper and new suggestions; make your own; quest bar; summary; Pilgrim pin", where: ["alpha/js/quests.js", "alpha/js/deck.js", "app.js#Quests", "app.js#decisions", "alpha/index.html"],
-    checks: ["unit:quests: criteria, labels, searches", "unit:quests: badges point at the quest that moves them forward", "e2e:quests.board", "e2e:museums.day", "e2e:atlas.explore"] },
+    checks: ["unit:quests: criteria, labels, searches", "unit:quests: badges point at the quest that moves them forward", "e2e:quests.board", "e2e:quests.supply", "e2e:museums.day", "e2e:atlas.explore", "unit:quest supply: the digest matches the collections, record for record", "unit:quest supply: every quest the board can suggest has the works on this device, before the live museums"] },
   { id: "taste.portrait", name: "Your eye as a title, traits, Called it", where: ["alpha/js/badges.js", "app.js#Taste", "app.js#decisions"],
     checks: ["unit:eye traits need a clear lean and enough looking; the title follows", "e2e:taste.portrait"] },
   { id: "taste.jump", name: "Sticky jump bar scrolls to sections and follows your scroll", where: ["app.js#Taste", "alpha/app.css"], checks: ["e2e:taste.jump"] },

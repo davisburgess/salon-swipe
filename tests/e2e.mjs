@@ -440,6 +440,31 @@ await check("quests.board", async () => {
   await ctx.close();
 });
 
+await check("quests.supply", async () => {
+  // Reproduces the 0.7.0 failure: a recommended "Works from China" quest, started while the deck was mid-refill.
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
+  await mockWorld(ctx);
+  const p = await ctx.newPage(); await p.goto(APP);
+  await pp(p, () => {
+    const mk = (i, place, v) => ({ uid: `aic:${3000 + i}`, v, t: Date.now() - (60 - i) * 60000, f: [`style|S${i % 9}`], a: { uid: `aic:${3000 + i}`, src: "aic", title: `W${i}`, place, kind: "Painting", year: 1700 } });
+    const swipes = [mk(0, "Italy", 2), mk(1, "Iran", 2), ...Array.from({ length: 40 }, (_, i) => mk(2 + i, "France", i % 2 ? 1 : -1))];
+    localStorage.clear(); localStorage.setItem("pp-alpha-v1", JSON.stringify({ onboarded: true, swipes, badges: { "pin:_init": 1 }, levelScale: 3 }));
+  });
+  await p.reload(); await waitTop(p);
+  await p.click("#btnQuests"); await p.waitForSelector("#modal:not([hidden]) .qcard", { timeout: 15000 });
+  const card = p.locator(".qcard", { hasText: "Works from China" });
+  expect(await card.count() === 1, `no China quest on the board: ${await p.textContent("#modalBody")}`);
+  // Real museums take seconds; slow them down so an ordinary refill is still in flight when the quest starts.
+  await ctx.route("https://api.artic.edu/api/v1/artworks/search**", async (r) => { await new Promise((x) => setTimeout(x, 2500)); await r.fallback(); });
+  await pp(p, () => { __pp.deck.pool = []; __pp.deck.refill(); });   // an ordinary refill in flight, as on a phone mid-swipe
+  await card.click();
+  await p.waitForSelector("#questBar:not([hidden])", { timeout: 15000 }); await waitTop(p);
+  expect(/Works from China · 0 of 20/.test(await p.textContent("#questBar")), `bar: ${await p.textContent("#questBar")}`);
+  for (let i = 0; i < 6; i++) { await waitTop(p); const a = await pp(p, () => ({ place: __pp.deck.queue[0].place, src: __pp.deck.queue[0].src })); expect(/China|Chinese/.test(a.place || ""), `card ${i} from ${a.place} (${a.src})`); await press(p, "ArrowRight"); }
+  const s = await store(p); expect(s.quest && s.quest.left === 14, `quest state ${JSON.stringify(s.quest && { left: s.quest.left })}`);
+  await ctx.close();
+});
+
 /* ================= Session B: broken images ================= */
 await check("look.broken", async () => {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });

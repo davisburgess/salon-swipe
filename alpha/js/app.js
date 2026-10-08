@@ -2,14 +2,14 @@
 
 import { esc, clamp, relTime, workKey } from "./util.js";
 import { OPENING, TONES, WHY_CHIPS } from "./curation.js";
-import { search, details, isAvailable, sampleLocal, health as srcHealth, MUSEUMS } from "./sources.js";
+import { search, details, isAvailable, sampleLocal, loadDigest, loadStaticAt, health as srcHealth, MUSEUMS } from "./sources.js";
 import { TasteModel, features, driftFromHistory } from "./model.js";
 import { Deck, MAX_DEFERS } from "./deck.js";
 import { load, save, saveFailed, record, STORE_KEY, mergeSwipes, backupPayload, parseBackup, encodeCode, fromSalonSwipe, compact } from "./store.js";
 import { stats, levelFor, LEVELS, LEVEL_SCALE, profileFacts, templateNote } from "./rewards.js";
 import { loadWorld, countryStats, grandTour, mapSVG, timelineSVG, EXPLORE_LENGTH } from "./atlas.js";
 import { geoOf, COUNTRY } from "./geo.js";
-import { newQuest, matches as questMatches, suggestions as questSuggestions, questForBadge, BUILDER, critFromBuilder, QUEST_LENGTHS } from "./quests.js";
+import { digestCount, digestCan, newQuest, matches as questMatches, suggestions as questSuggestions, questForBadge, BUILDER, critFromBuilder, QUEST_LENGTHS } from "./quests.js";
 import { museumStats, stampSVG, dayActive, DAY_LENGTH, STAMP_AT } from "./museums.js";
 import { emblemSVG, BADGES, FAMILIES, TIERS, APP_RUNGS, badgeStats, award, unsealedAt, pinState, closest, eyeTitle, pinSVG, ensureDefs, tierName, byId as badgeById } from "./badges.js";
 import * as api from "./sync.js";
@@ -23,7 +23,7 @@ const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 /* ---------- state ---------- */
 const state = load();
 const model = new TasteModel().fit(state.swipes);
-const deck = new Deck({ state, model, search, isAvailable, sampleLocal });
+const deck = new Deck({ state, model, search, isAvailable, sampleLocal, catalog: { loadDigest, loadStaticAt } });
 const undoStack = [];
 if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) window.__pp = { state, model, deck, renderStage };   // test hook, local only
 let syncTimer = null, syncing = false;
@@ -165,15 +165,18 @@ function renderStage() {
     deck.refill().then(() => {
       deck.topUp();
       if (deck.queue.length) return renderStage();
-      if (activeQuest()) {   // ran out of works for the quest: back to everything
-        const q = activeQuest(); endQuest(false);
-        toast(`That's all we can find for "${q.label}" right now. Back to every museum.`); return renderStage();
+      if (activeQuest()) {
+        // Try again before giving up: a slow museum or a busy moment shouldn't end a quest.
+        if ((deck._qRetry = (deck._qRetry || 0) + 1) <= 3) return setTimeout(renderStage, 600);
+        deck._qRetry = 0; const q = activeQuest(); endQuest(false);
+        toast(`We lost the connection to the collections, so "${q.label}" is paused. Your progress is saved in Quests.`); return renderStage();
       }
       stage.innerHTML = `<div class="empty"><p>The museums aren't answering right now. Check your connection, then try again.</p><button class="btn" id="retry">Try again</button></div>`;
       $("#retry").onclick = renderStage;
     });
     return;
   }
+  deck._qRetry = 0;
   if (b) stage.appendChild(cardEl(b, "next"));
   const top = cardEl(a, "top");
   stage.appendChild(top);
@@ -752,10 +755,10 @@ function openPin(id) {
     <h2>${esc(b.name)}</h2>
     <p>${esc(b.how)}</p>${ladder}${prog}
     <p class="walllabel">${esc(b.fact)}</p>
-    ${qfor ? `<button class="btn" id="pinQuest" type="button">Start a quest for this: ${esc(questLabel(qfor))}</button>` : ""}
+    ${qfor ? `<button class="btn" id="pinQuest" type="button">Start a quest for this: ${esc(qfor.label || questLabel(qfor))}</button>` : ""}
     <button class="btn primary" id="modalOk">Close</button>`);
   $("#modalOk").onclick = closeModal;
-  const pq = $("#pinQuest"); if (pq) pq.onclick = () => startQuest({ crit: qfor.crit, total: qfor.total, goal: b.id });
+  const pq = $("#pinQuest"); if (pq) pq.onclick = () => startQuest({ crit: qfor.crit, total: qfor.total, goal: b.id, label: qfor.label });
 }
 
 /* ---------- Museums ---------- */
@@ -793,18 +796,43 @@ function endDay() { endQuest(true); renderTaste(); }
 /* ---------- Quests ---------- */
 // Museum Day and Explore are quests too; this is the one place quests start, end and finish.
 function activeQuest() { const q = state.quest; return q && q.left > 0 ? q : null; }
+// How many works can fill a quest: exact counts from the on-device digest, plus works found at the live museums when
+// the digest can't cover it. Results are kept briefly, with the works found, which then open the quest.
+const supplyCache = new Map();
+const MIN_QUEST = 5;
+function enabledSources() { const on = state.settings.sources || {}; return Object.keys(MUSEUMS).filter((k) => on[k] !== false && isAvailable(k)); }
+async function questSupply(crit, total) {
+  const key = JSON.stringify(crit), hit = supplyCache.get(key);
+  if (hit && Date.now() - hit.t < 600000) { hit.prefetch = hit.prefetch.filter((a) => !state.seen[a.uid]); return hit; }
+  const q = newQuest(state, crit, total), src = enabledSources(), local = src.filter((k) => k === "nga" || k === "cma");
+  let n = 0, prefetch = [];
+  if (crit.src && !local.includes(crit.src)) n = isAvailable(crit.src) ? Infinity : 0;   // a Museum Day at a live museum: browse it
+  else if (digestCan(crit)) { try { n = digestCount(await loadDigest(), q, state, crit.src ? [crit.src] : local) || 0; } catch (e) { n = 0; } }
+  if (n < total && !crit.src) prefetch = await deck.probe(q, total - n);
+  const r = { available: n + prefetch.length, prefetch, t: Date.now() };
+  supplyCache.set(key, r); return r;
+}
 async function startQuest({ crit, total = 20, kind = "quest", label, cue, goal = null }) {
+  const probeQ = newQuest(state, crit, total, { kind, label });
+  toast(`Checking we have enough for "${probeQ.label}"…`, 2500);
+  const sup = await questSupply(crit, total);
+  if (sup.available < 1) { toast(`We don't have works for "${probeQ.label}" right now, so we didn't start it.`); return; }
+  total = Math.max(1, Math.min(total, sup.available));
   if (activeQuest()) endQuest(false);
   const q = newQuest(state, crit, total, { kind, goal, label });
   q.cue = cue || `Quest: ${q.label}`;
   state.quest = q; persist({ meta: true });
-  closeModal(); deck.focusQuest(); show("look");
+  closeModal();
+  if (deck.loading) await deck.loading.catch(() => {});   // let an ordinary refill finish before focusing
+  deck.focusQuest();
+  for (const a of sup.prefetch) if (questMatches(q, a) && deck.usable(a) && !deck.inPlay(a)) deck.pool.push(a);
+  show("look");
   stage.innerHTML = `<div class="empty"><p>Looking for ${esc(q.label.charAt(0).toLowerCase() + q.label.slice(1))}…</p></div>`;
-  await deck.refill(); deck.topUp();
-  if (!deck.queue.length || !questMatches(q, deck.queue[0])) {
+  for (let i = 0; i < 3 && !(deck.queue[0] && questMatches(q, deck.queue[0])); i++) { deck.topUp(); if (deck.queue[0] && questMatches(q, deck.queue[0])) break; await deck.refill(); deck.focusQuest(); deck.topUp(); }
+  if (!deck.queue.length || !questMatches(q, deck.queue[0])) {   // only a connection problem gets here: the works exist
     state.quest = null; persist({ meta: true }); deck.focusQuest();
-    toast(`We couldn't find enough for "${q.label}" just now. Try another quest.`);
-  } else toast(kind === "museum" ? `${q.label}. ${total} works.` : kind === "explore" ? `${q.label}. ${total} works.` : `Quest started: ${q.label}. ${total} works.`);
+    toast(`We couldn't reach the collections just now. Check your connection, then start "${q.label}" again.`);
+  } else toast(kind === "quest" ? `Quest started: ${q.label}. ${total} works.` : `${q.label}. ${total} works.`);
   renderStage();
 }
 function endQuest(say = true) {
@@ -841,15 +869,22 @@ function renderQuestBar() {
   $("#questText").textContent = `${q.label} · ${q.total - q.left} of ${q.total}`;
 }
 let boardSugs = [];
-function openQuestBoard() {
+async function openQuestBoard() {
   ensureDefs();
   const bst = badgeStats(state, model), earned = (id) => { let k = 0; for (let t = 1; t <= 4; t++) if (state.badges[`pin:${id}:${t}`]) k = t; return k; };
   const sg = questSuggestions(state, model, bst, earned), q = activeQuest();
+  openModal(`<p class="kicker">Quests</p><h2>Where to next?</h2><p class="small muted" id="qChecking">Finding quests we can fill for you…</p>`);
+  // Only offer quests we have the works for: count them, shorten any that are thin, drop any we can't fill.
+  const all = [...sg.badge, ...sg.deeper, ...sg.fresh];
+  await Promise.race([Promise.all(all.map(async (x) => { try { const s2 = await questSupply(x.crit, x.total); x.total = Math.min(x.total, s2.available); x.ok = s2.available >= MIN_QUEST; } catch (e) { x.ok = false; } })),
+    new Promise((r) => setTimeout(r, 12000))]);
+  for (const k of ["badge", "deeper", "fresh"]) sg[k] = sg[k].filter((x) => x.ok);
+  if ($("#modal").hidden) return;   // closed while checking
   boardSugs = [...sg.badge, ...sg.deeper, ...sg.fresh];
   let i = 0;
   const card = (x, icon) => { const n = i++, goal = x.goal && badgeById[x.goal];
     return `<button type="button" class="qcard" data-s="${n}">${goal ? pinSVG(goal, Math.max(1, earned(goal.id) + (goal.tiers ? 1 : 0)), "locked") : `<span class="qicon">${emblemSVG(icon)}</span>`}
-      <span><b>${esc(questLabel(x))}</b><small>${esc(x.why || "")}</small><small>${x.total} works</small></span></button>`; };
+      <span><b>${esc(x.label || questLabel(x))}</b><small>${esc(x.why || "")}</small><small>${x.total} works</small></span></button>`; };
   const row = (title, list, icon) => (list.length ? `<h3>${title}</h3><div class="qcards">${list.map((x) => card(x, icon)).join("")}</div>` : "");
   const kinds = Object.entries(BUILDER);
   openModal(`<p class="kicker">Quests</p><h2>Where to next?</h2>
@@ -860,21 +895,30 @@ function openQuestBoard() {
     <div class="qbuild">
       <label>Look at <select id="qKind">${kinds.map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join("")}</select></label>
       <select id="qVal" aria-label="Which"></select><input id="qArtist" type="text" placeholder="Artist's name" aria-label="Artist's name" hidden>
+      <p class="small muted" id="qAvail" aria-live="polite"></p>
       <div class="chips" role="group" aria-label="How many works">${QUEST_LENGTHS.map((n) => `<button type="button" class="chip" data-len="${n}" aria-pressed="${n === 20}">${n} works</button>`).join("")}</div>
       <button class="btn primary" id="qGo" type="button">Start</button>
     </div>
     <button class="btn" id="modalOk" type="button">Close</button>`);
   $("#modalOk").onclick = closeModal;
   const end = $("#qEnd"); if (end) end.onclick = () => { endQuest(true); closeModal(); };
-  $$(".qcard").forEach((b) => (b.onclick = () => { const x = boardSugs[+b.dataset.s]; startQuest({ crit: x.crit, total: x.total, goal: x.goal || null }); }));
+  $$(".qcard").forEach((b) => (b.onclick = () => { const x = boardSugs[+b.dataset.s]; startQuest({ crit: x.crit, total: x.total, goal: x.goal || null, label: x.label }); }));
   let len = 20;
   $$(".qbuild [data-len]").forEach((b) => (b.onclick = () => { len = +b.dataset.len; $$(".qbuild [data-len]").forEach((c) => c.setAttribute("aria-pressed", c === b)); }));
+  const avail = async () => {
+    const k = $("#qKind").value, out = $("#qAvail"); if (!BUILDER[k].options) { out.textContent = "We'll check the museums for this artist when you start."; return; }
+    const crit = critFromBuilder(k, $("#qVal").value);
+    if (crit.src && crit.src !== "nga" && crit.src !== "cma") { out.textContent = "Browses the museum live."; return; }
+    try { const n = digestCount(await loadDigest(), newQuest(state, crit, 20), state, crit.src ? [crit.src] : enabledSources().filter((s) => s === "nga" || s === "cma")) || 0;
+      out.textContent = n ? `${n.toLocaleString()} works ready on this device, plus whatever the live museums add.` : "None on this device; we'll check the live museums when you start."; } catch (e) { out.textContent = ""; }
+  };
   const fill = () => {
     const k = $("#qKind").value, opts = BUILDER[k].options;
     $("#qArtist").hidden = !!opts; $("#qVal").hidden = !opts;
     if (opts) $("#qVal").innerHTML = opts().map(([v, l]) => `<option value="${esc(String(v))}">${esc(l)}</option>`).join("");
+    avail();
   };
-  $("#qKind").onchange = fill; fill();
+  $("#qKind").onchange = fill; $("#qVal").onchange = avail; fill();
   $("#qGo").onclick = () => {
     const k = $("#qKind").value, v = BUILDER[k].options ? $("#qVal").value : $("#qArtist").value.trim();
     if (!v) { toast("Type an artist's name first."); return; }

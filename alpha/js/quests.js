@@ -13,7 +13,7 @@ export const QUEST_LENGTHS = [10, 20, 30];
 const NOW = new Date().getFullYear();
 
 // What a work is, in quest terms (cached on the work).
-function facts(a) {
+export function facts(a) {
   if (a._q) return a._q;
   const g = geoOf(a), y = Number.isFinite(a.year) ? a.year : null;
   return (a._q = { iso: g && g.iso, cont: g && g.continent, year: y, movement: canonMovement(a.movement), school: schoolOf(a.movement, g, y),
@@ -23,7 +23,10 @@ function facts(a) {
 // Does this work count toward the quest?
 export function matches(quest, a) {
   if (!quest || !a) return false;
-  const c = quest.crit, f = facts(a), ex = quest.excl || {};
+  return matchFacts(quest, facts(a));
+}
+function matchFacts(quest, f) {
+  const c = quest.crit, ex = quest.excl || {};
   if (c.src && f.src !== c.src) return false;
   if (c.iso && f.iso !== c.iso) return false;
   if (c.cont && f.cont !== c.cont) return false;
@@ -85,12 +88,13 @@ export function newQuest(state, crit, total, extra = {}) {
 /* ---------- suggestions ---------- */
 // Badge-linked quests. Each lineage side becomes a criterion; other badges point at what they still need.
 const SIDE = {
-  ukiyo: { movement: "Ukiyo-e" }, impressionist: { movement: "Impressionism" }, greek: { iso: "GR", yearTo: 0 }, roman: { iso: "IT", yearTo: 500 },
+  ukiyo: { iso: "JP", type: "Print", yearFrom: 1600, yearTo: 1900 }, impressionist: { movement: "Impressionism" }, greek: { iso: "GR", yearTo: 0 }, roman: { iso: "IT", yearTo: 500 },
   byzantine: { iso: "TR", yearFrom: 330, yearTo: 1453 }, vienna: { movement: "Vienna Secession" }, preraph: { movement: "Pre-Raphaelite" },
   earlyItalian: { iso: "IT", yearFrom: 1250, yearTo: 1520 }, cubist: { movement: "Cubism" }, africa: { school: "Arts of Africa" }, neoclassical: { movement: "Neoclassicism" },
 };
 const SIDE_NAME = { ukiyo: "ukiyo-e print", impressionist: "Impressionist work", greek: "ancient Greek work", roman: "ancient Roman work", byzantine: "Byzantine work",
   vienna: "Vienna Secession work", preraph: "Pre-Raphaelite work", earlyItalian: "early Italian Renaissance work", cubist: "Cubist work", africa: "work from Africa", neoclassical: "Neoclassical work" };
+const SIDE_LABEL = { ukiyo: "Ukiyo-e prints", greek: "Ancient Greece", roman: "Ancient Rome", byzantine: "Byzantine art", earlyItalian: "Early Italian Renaissance" };
 const LINEAGE = { japonisme: ["ukiyo", "impressionist"], "copycat-empire": ["greek", "roman"], "gold-standard": ["byzantine", "vienna"], brotherhood: ["preraph", "earlyItalian"],
   "crossed-paths": ["cubist", "africa"], "back-to-the-future": ["neoclassical", "greek"] };
 
@@ -100,7 +104,7 @@ export function questForBadge(id, st, state, earned) {
     const [a, b] = LINEAGE[id]; const need = !st.sides[a] ? a : !st.sides[b] ? b : null; if (!need) return null;
     const other = need === a ? b : a;
     const an = (w) => (/^[aeiou]/i.test(w) ? `an ${w}` : `a ${w}`);
-    return { crit: SIDE[need], total: 20, goal: id, why: st.sides[other] ? `Love ${an(SIDE_NAME[need])} to finish ${badgeTitle(id)}.` : `Half of ${badgeTitle(id)}: love ${an(SIDE_NAME[need])}.` };
+    return { crit: SIDE[need], label: SIDE_LABEL[need], total: 20, goal: id, why: st.sides[other] ? `Love ${an(SIDE_NAME[need])} to finish ${badgeTitle(id)}.` : `Half of ${badgeTitle(id)}: love ${an(SIDE_NAME[need])}.` };
   }
   const t = (n) => earned(id) < n;
   switch (id) {
@@ -155,4 +159,26 @@ export const BUILDER = {
 export function critFromBuilder(kind, value) {
   if (kind === "era") { const [a, b] = value.split(":").map(Number); return { yearFrom: a, yearTo: b }; }
   return { [kind]: value };
+}
+
+/* ---------- supply: the on-device catalog digest (tools/build_digest.mjs) ----------
+   Counts exactly how many National Gallery and Cleveland works fit a quest, and picks them, so the app never
+   recommends or starts a quest it can't fill. Artist quests can't be counted here (the digest has no names). */
+export const digestCan = (crit) => !crit.artist;
+function rowFacts(d, src, i) {
+  const c = d.srcs[src].cols, get = (k) => (c[k][i] < 0 ? null : d.dicts[k][c[k][i]]);
+  const y = c.year[i];
+  return { src, iso: get("iso"), cont: get("cont"), school: get("school"), type: get("type"), movement: get("mov"), year: y, century: centuryOf(y), artist: null };
+}
+export function digestMatches(d, quest, srcs = Object.keys(d.srcs)) {
+  const out = [];
+  for (const src of srcs) { if (!d.srcs[src]) continue; const n = d.srcs[src].count; for (let i = 0; i < n; i++) if (matchFacts(quest, rowFacts(d, src, i))) out.push([src, i]); }
+  return out;
+}
+// Works that fit and that you haven't judged yet.
+export function digestCount(d, quest, state, srcs) {
+  if (!d || !digestCan(quest.crit)) return null;
+  const n = digestMatches(d, quest, srcs).length;
+  const seen = (state.swipes || []).filter((s) => s.a && d.srcs[s.a.src] && (!srcs || srcs.includes(s.a.src)) && matches(quest, s.a)).length;
+  return Math.max(0, n - seen);
 }

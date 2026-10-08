@@ -6,6 +6,26 @@ How every release ships:
 3. **GitHub re-runs everything on each push** (Actions, "Checks"), and probes the real museum APIs every morning, which the build workspace can't reach. A commit message containing `[live]` runs that probe immediately; every release commit uses it.
 4. **At most one small usability improvement per release,** listed here so you can veto it. Never a change to gestures, saved data, or anything you'd have to relearn without asking first.
 
+## 0.7.1-alpha (Oct 8, 2026)
+
+**Bug you reported: a recommended quest ("Works from China") dropped you out, saying it couldn't find enough works.** There were 2,288 works from China on your device.
+- **Cause:** a timing bug. If the app was already fetching works in the background when you started the quest (it does after most swipes, and real museums take seconds), the quest waited on that ordinary batch instead of its own. The first card wasn't from China, so the quest cancelled itself. Reproduced in the browser checks by slowing the museums to realistic speed: 0.7.0 fails, 0.7.1 passes.
+- **Fix:** a quest now lets any background fetch finish, then fetches its own works before it begins.
+
+**New guarantee: we only recommend quests we can fill.**
+- A new **catalog digest** (178 KB) records the country, school, type, movement and date of every National Gallery and Cleveland work on your device. The app counts exactly how many works fit a quest before offering it, and fetches exactly those works during the quest instead of sampling.
+- Quests the device can't fill on its own (Pre-Raphaelite, Cubism, Vienna Secession and others that come from Wikidata, the V&A or Chicago) are checked against the live museums before they're offered, and the works found open the quest.
+- Quests are shortened to what's available, and anything with fewer than 5 works isn't offered. "Make your own" shows how many works are ready before you start. Explore and Museum Day get the same check: if a country really has nothing, you stay where you are with a message instead of being dropped in and out.
+- If a quest's supply hiccups mid-way, it retries three times before pausing. Only a lost connection can stop it now.
+
+**Review found and fixed**
+- The Ukiyo-e quest (the other half of Japonisme) asked for works labelled "Ukiyo-e", which finds none on the device, though Cleveland holds thousands of unlabelled Edo-period Japanese prints. It now asks for Japanese prints from 1600 to 1900, the same rule the Japonisme pin uses.
+- A new test checks every badge-linked quest the board can suggest against the digest, and fails if one can't be filled on the device and isn't covered by the live-museum check.
+- The digest is rebuilt with the monthly collection rebuild, and a test fails if it falls out of step with the collections.
+
+**Checks:** 57 unit and backend tests (new: digest in step with the collections; every suggestable quest has supply), 45 of 45 browser checks (new: quests.supply recreates your China quest with a refill in flight and slow museums, and requires six China cards in a row).
+**On your phone:** tap Quests and start "Works from China" again.
+
 ## 0.7.0-alpha (Oct 8, 2026)
 
 **Change requested by you: quests.**

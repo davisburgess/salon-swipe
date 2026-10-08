@@ -9,15 +9,15 @@
 import { OPENING, BROWSE_TERMS } from "./curation.js";
 import { features } from "./model.js";
 import { workKey, norm, shuffle } from "./util.js";
-import { matches as questMatches, queries as questQueries } from "./quests.js";
+import { matches as questMatches, queries as questQueries, digestCan, digestMatches } from "./quests.js";
 import { choose, retrieve, planQuery } from "./recommend.js";
 
 export const ARTIST_GAP = 6, LATER_MIN = 15, LATER_MAX = 25, MAX_DEFERS = 3, POOL_TARGET = 24;
 const SRC_WEIGHT = { aic: 0.2, nga: 0.2, met: 0.12, cma: 0.12, wd: 0.14, smk: 0.12, vam: 0.1 };
 
 export class Deck {   // options: { state, model, search, isAvailable, sampleLocal? }
-  constructor({ state, model, search, isAvailable, sampleLocal = null, rand = Math.random }) {
-    Object.assign(this, { state, model, search, isAvailable, sampleLocal, rand });
+  constructor({ state, model, search, isAvailable, sampleLocal = null, catalog = null, rand = Math.random }) {
+    Object.assign(this, { state, model, search, isAvailable, sampleLocal, catalog, rand });
     this.queue = []; this.pool = []; this.seedBuf = []; this.loading = null;
     this.seedCursor = state.seedIdx || 0;   // how far we've fetched; state.seedIdx is how far you've seen
     this.rebuildKeys();
@@ -107,12 +107,19 @@ export class Deck {   // options: { state, model, search, isAvailable, sampleLoc
         // A quest: look in the on-device collections and ask each museum, keep only works that count.
         const fits = (a) => questMatches(quest, a);
         let found = 0;
-        if (this.sampleLocal) for (const src of this.sources().filter((s) => s === "nga" || s === "cma")) {
+        // On-device works first, fetched exactly from the digest, so a quest we started can always be filled.
+        const local = this.sources().filter((s) => s === "nga" || s === "cma");
+        if (this.catalog && local.length && digestCan(quest.crit)) {
           try {
-            const recs = this.dedupe((await this.sampleLocal(src, { shards: 3 })).filter(fits));
-            const best = this.model.trained ? retrieve(recs, this.model, { k: 10, rand: this.rand }) : recs.slice(0, 10);
+            const d = await this.catalog.loadDigest();
+            if (!this._qc || this._qc.id !== quest.id) this._qc = { id: quest.id, list: shuffle(digestMatches(d, quest, local), this.rand), at: 0 };
+            const take = this._qc.list.slice(this._qc.at, this._qc.at + 60); this._qc.at += take.length;
+            const by = {}; for (const [src, i] of take) (by[src] ||= []).push(i);
+            const recs = (await Promise.all(Object.entries(by).map(([src, pos]) => this.catalog.loadStaticAt(src, pos)))).flat();
+            const fresh = this.dedupe(recs.filter(fits));
+            const best = this.model.trained ? retrieve(fresh, this.model, { k: 14, rand: this.rand }) : fresh.slice(0, 14);
             this.pool.push(...best); found += best.length;
-          } catch (e) { /* collection unreachable */ }
+          } catch (e) { /* collection unreachable; fall through to live museums */ }
         }
         for (const src of shuffle(this.sources().filter((s) => s !== "nga" && s !== "cma"), this.rand)) {
           if (this.pool.length >= 16) break;
@@ -216,4 +223,17 @@ Deck.prototype.focusQuest = function () {
   const q = this.quest(); if (!q) return;
   const fits = (a) => questMatches(q, a);
   this.queue = this.queue.filter(fits); this.pool = this.pool.filter(fits);
+};
+
+// Ask the live museums for works that fit a quest, up to `need`. Used to check supply before a quest is offered or
+// started, and the works found open the quest.
+Deck.prototype.probe = async function (quest, need, { timeout = 9000 } = {}) {
+  const fits = (a) => questMatches(quest, a), found = [], seen = new Set();
+  const remote = this.sources().filter((s) => s !== "nga" && s !== "cma");
+  const jobs = remote.flatMap((src) => questQueries(quest.crit, src).slice(0, 2).map((q) => [src, q]));
+  const run = Promise.all(jobs.map(async ([src, q]) => {
+    try { for (const a of await this.search(src, q, { limit: 24 })) if (fits(a) && this.usable(a) && !this.inPlay(a) && !seen.has(a.uid)) { seen.add(a.uid); found.push(a); } } catch (e) { /* skip */ }
+  }));
+  await Promise.race([run, new Promise((r) => setTimeout(r, timeout))]);
+  return found.slice(0, Math.max(need, found.length));
 };
