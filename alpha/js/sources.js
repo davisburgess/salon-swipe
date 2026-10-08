@@ -181,7 +181,22 @@ async function searchMet(q, { limit = 12, browse = false } = {}) {
 const STATIC_BASE = new URL("../data/", import.meta.url).href;
 const staticIdx = {}, staticShards = {};
 const loadIndex = (src) => (staticIdx[src] ||= getJSON(`${STATIC_BASE}${src}/index.json`).catch((e) => { delete staticIdx[src]; throw e; }));
-const loadShard = (src, n) => (staticShards[`${src}/${n}`] ||= getJSON(`${STATIC_BASE}${src}/shard-${String(n).padStart(3, "0")}.json`).catch((e) => { delete staticShards[`${src}/${n}`]; throw e; }));
+const shardOrder = [];
+const loadShard = (src, n) => {
+  const key = `${src}/${n}`;
+  if (!staticShards[key]) {
+    staticShards[key] = getJSON(`${STATIC_BASE}${src}/shard-${String(n).padStart(3, "0")}.json`).catch((e) => { delete staticShards[key]; throw e; });
+    shardOrder.push(key); while (shardOrder.length > 16) delete staticShards[shardOrder.shift()];   // keep memory bounded
+  }
+  return staticShards[key];
+};
+// A random slice of a static collection, for the recommender to score on the device (recommend.js retrieve).
+export async function sampleLocal(src, { shards = 1 } = {}) {
+  const idx = await loadIndex(src);
+  const picks = Array.from({ length: shards }, () => Math.floor(Math.random() * idx.shards));
+  const got = await Promise.all(picks.map((n) => loadShard(src, n).catch(() => [])));
+  return got.flat().map((r) => normalizeStatic(src, r)).filter(Boolean);
+}
 
 export function normalizeStatic(src, r) {
   if (!r || !(r.u || r.img)) return null;

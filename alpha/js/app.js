@@ -2,8 +2,8 @@
 
 import { esc, clamp, relTime, workKey } from "./util.js";
 import { OPENING, TONES, WHY_CHIPS } from "./curation.js";
-import { search, details, isAvailable, health as srcHealth, MUSEUMS } from "./sources.js";
-import { TasteModel, features } from "./model.js";
+import { search, details, isAvailable, sampleLocal, health as srcHealth, MUSEUMS } from "./sources.js";
+import { TasteModel, features, driftFromHistory } from "./model.js";
 import { Deck, MAX_DEFERS } from "./deck.js";
 import { load, save, saveFailed, record, STORE_KEY, mergeSwipes, backupPayload, parseBackup, encodeCode, fromSalonSwipe, compact } from "./store.js";
 import { stats, levelFor, LEVELS, LEVEL_SCALE, profileFacts, templateNote } from "./rewards.js";
@@ -22,7 +22,7 @@ const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 /* ---------- state ---------- */
 const state = load();
 const model = new TasteModel().fit(state.swipes);
-const deck = new Deck({ state, model, search, isAvailable });
+const deck = new Deck({ state, model, search, isAvailable, sampleLocal });
 const undoStack = [];
 if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) window.__pp = { state, model, deck, renderStage };   // test hook, local only
 let syncTimer = null, syncing = false;
@@ -258,6 +258,7 @@ function decide(v, vel) {
   if (g && g.iso === ex.iso) { ex.left--; if (!ex.left) finishExplore(ex.iso); }
   markSeedSeen(a);
   model.learn(rec.f, v);
+  if (state.swipes.length % 25 === 0) model.drifting = driftFromHistory(state.swipes);   // between full retrains
   deck.markSeen(a); deck.queue.shift(); deck.releaseLater(); deck.topUp();
   undoStack.push({ type: "swipe", rec, card: a }); if (undoStack.length > 15) undoStack.shift();
   flyOut(top, v === 2 ? "love" : v === 1 ? "keep" : v === -1 ? "pass" : "undecided", vel);
@@ -644,6 +645,7 @@ function renderTaste() {
       ${app.lift == null
         ? `<p class="small">We start scoring ourselves after 20 works we picked as matches for you (${app.n} so far).</p>`
         : `<p class="small">When we pick a match, you keep it <b>${pct(app.matchKeep)}</b> of the time, against <b>${pct(app.otherKeep)}</b> for everything else.${app.slipping ? " We've slipped lately: either your taste is moving or we're behind. Keep going and we'll catch up." : ""}</p>`}
+      ${model.drifting ? `<p class="small drift"><b>Your taste seems to be moving.</b> Your recent choices don't match your earlier ones, so we're looking further afield and weighing your newest decisions more until we catch up.</p>` : ""}
       ${called.length >= 5 ? `<p class="kicker">Called it: ${called.filter(Boolean).length} of your last ${called.length}</p><div class="callit" aria-hidden="true">${called.map((ok) => `<i class="${ok ? "hit" : ""}"></i>`).join("")}</div>` : ""}
       <p class="muted small">This is the app's score, not yours. It never affects your level or takes back a pin.</p>
     </div>
@@ -679,7 +681,7 @@ function renderTaste() {
     ${fams}</section>`;
 
   // Leanings: what the model has learned, reasons, undecided.
-  const dims = [["style", "Movements"], ["artist", "Artists"], ["place", "Places"], ["med", "Media"], ["era", "Eras"], ["light", "Light"], ["sat", "Color intensity"], ["warm", "Temperature"], ["busy", "Detail"], ["subject", "Subjects"]];
+  const dims = [["school", "Schools"], ["style", "Movements"], ["artist", "Artists"], ["country", "Countries"], ["type", "Types of work"], ["era", "Eras"], ["med", "Media"], ["light", "Light"], ["sat", "Color intensity"], ["warm", "Temperature"], ["busy", "Detail"], ["subject", "Subjects"]];
   const leanHTML = dims.map(([d, label]) => {
     const rows = model.leaning(d, 6, 2); if (!rows.length) return "";
     const max = Math.max(0.5, ...rows.map((r) => Math.abs(r.weight)));

@@ -11,13 +11,14 @@ import { features } from "./model.js";
 import { workKey, norm, shuffle } from "./util.js";
 import { geoOf } from "./geo.js";
 import { exploreTerm } from "./atlas.js";
+import { choose, retrieve, planQuery } from "./recommend.js";
 
 export const ARTIST_GAP = 6, LATER_MIN = 15, LATER_MAX = 25, MAX_DEFERS = 3, POOL_TARGET = 24;
 const SRC_WEIGHT = { aic: 0.2, nga: 0.2, met: 0.12, cma: 0.12, wd: 0.14, smk: 0.12, vam: 0.1 };
 
-export class Deck {
-  constructor({ state, model, search, isAvailable, rand = Math.random }) {
-    Object.assign(this, { state, model, search, isAvailable, rand });
+export class Deck {   // options: { state, model, search, isAvailable, sampleLocal? }
+  constructor({ state, model, search, isAvailable, sampleLocal = null, rand = Math.random }) {
+    Object.assign(this, { state, model, search, isAvailable, sampleLocal, rand });
     this.queue = []; this.pool = []; this.seedBuf = []; this.loading = null;
     this.seedCursor = state.seedIdx || 0;   // how far we've fetched; state.seedIdx is how far you've seen
     this.rebuildKeys();
@@ -73,9 +74,8 @@ export class Deck {
   }
   plan() {
     const src = this.pickSource(); if (!src) return null;
-    const refine = this.model.trained && this.rand() > this.state.settings.explore;
-    const fav = refine ? this.favourites() : [];
-    if (fav.length) return { src, q: fav[Math.floor(this.rand() * fav.length)], browse: false, why: "refine" };
+    const q = planQuery(this.model, { explore: this.state.settings.explore, rand: this.rand });
+    if (q && q.q) return { src, q: q.q, browse: false, why: q.why };
     if (src === "aic") return { src, q: "", browse: true, why: "browse" };
     return { src, q: BROWSE_TERMS[Math.floor(this.rand() * BROWSE_TERMS.length)], browse: true, why: "browse" };
   }
@@ -118,6 +118,14 @@ export class Deck {
         this.exploreFound = found;
         return;
       }
+      // Score a slice of the on-device collections and keep the few worth showing (recommend.js retrieve).
+      if (this.sampleLocal && this.model.trained) {
+        const local = this.sources().filter((s) => s === "nga" || s === "cma");
+        if (local.length) {
+          const src = local[Math.floor(this.rand() * local.length)];
+          try { const recs = this.dedupe(await this.sampleLocal(src, { shards: 2 })); this.pool.push(...retrieve(recs, this.model, { k: 8, rand: this.rand })); } catch (e) { /* collection unreachable */ }
+        }
+      }
       let tries = 0;
       while (this.pool.length < POOL_TARGET && tries++ < 3) {
         const pl = this.plan(); if (!pl) break;
@@ -140,17 +148,11 @@ export class Deck {
     const recent = new Set(this.recentArtists());
     let cands = this.pool.filter((a) => !a.artist || !recent.has(norm(a.artist)));
     if (!cands.length) cands = this.pool;
-    const explore = this.state.settings.explore, r = this.rand();
-    let pick, why;
-    if (!this.model.trained || r < explore * 0.45) { pick = cands[Math.floor(this.rand() * cands.length)]; why = "explore"; }
-    else {
-      const scored = cands.map((a) => { const f = features(a); return { a, p: this.model.p(f), nov: this.model.novelty(f) }; });
-      if (r < explore) { scored.sort((x, y) => (Math.abs(x.p - 0.5) - 0.25 * x.nov) - (Math.abs(y.p - 0.5) - 0.25 * y.nov)); why = "unsure"; }
-      else { scored.sort((x, y) => (y.p + 0.05 * this.rand()) - (x.p + 0.05 * this.rand())); why = "match"; }
-      pick = scored[0].a;
-    }
+    const shown = this.state.swipes.slice(-6).map((s) => s.a).concat(this.queue);
+    const res = choose(cands, { model: this.model, explore: this.state.settings.explore, rand: this.rand, recent: shown });
+    const pick = res.pick;
     this.pool.splice(this.pool.indexOf(pick), 1);
-    pick._why = why;
+    pick._why = res.why;
     return pick;
   }
   topUp(n = 3) {

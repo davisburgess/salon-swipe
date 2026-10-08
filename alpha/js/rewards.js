@@ -57,7 +57,7 @@ export function profileFacts(state, model) {
   const lean = (dim) => model.leaning(dim, 8, 2);
   const pick = (dim, sign, k) => lean(dim).filter((x) => (sign > 0 ? x.weight > 0.1 : x.weight < -0.1))
     .sort((a, b) => sign * (b.weight - a.weight)).slice(0, k).map((x) => ({ value: x.value, seen: x.seen, liked: x.liked, passed: x.passed }));
-  const dims = ["style", "artist", "place", "med", "era", "subject", "hue", "light", "sat", "warm", "busy"];
+  const dims = ["school", "style", "artist", "country", "type", "era", "subject", "hue", "light", "sat", "warm", "busy"];
   const likes = {}, passes = {};
   for (const d of dims) { const l = pick(d, 1, 3), p = pick(d, -1, 2); if (l.length) likes[tokenLabel(d + "|x").dimLabel] = l; if (p.length) passes[tokenLabel(d + "|x").dimLabel] = p; }
   const brief = (s) => ({ title: s.a.title, artist: s.a.artist, date: s.a.date, movement: s.a.movement });
@@ -100,7 +100,7 @@ const ANGLES = {
     docent: [`${a} is the movement you respond to most so far, across ${s.seen} works.`, `You've kept or loved most of the ${a} works you've seen.`],
     critic: [`${a} dominates your positive responses (${kept} of ${s.seen} kept).`, `Your strongest affinity is ${a}; the sample is ${s.seen} works.`],
     friend: [`You really love ${a}! ${kept} of ${s.seen} have been keepers.`, `${a} keeps making you happy, and honestly, fair.`] }; },
-  place: (f) => { const p = first(f.likes, "Place"); if (!p) return null; return {
+  place: (f) => { const p = first(f.likes, "Country"); if (!p) return null; return {
     cheeky: [`Geographically, your eye keeps landing in ${p}. Passport not required.`, `${p} keeps winning. The tourism board thanks you.`],
     docent: [`Works made in ${p} stand out among the ones you keep.`, `You respond often to art from ${p}.`],
     critic: [`Provenance clusters around ${p} in what you keep.`, `There's a regional bias toward ${p} in your selections.`],

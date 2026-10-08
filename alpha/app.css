@@ -206,6 +206,7 @@ textarea { width: 100%; min-height: 84px; font-size: 12.5px; }
 .appknows { margin: 18px 0 6px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
 .appknows h2 { margin: 0 0 8px; }
 .appknows .small { margin: 8px 0; }
+.drift { border-left: 3px solid var(--gilt); padding-left: 10px; }
 .rungs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; }
 .rungs span { font-size: 10.5px; text-align: center; padding: 6px 0 0; border-top: 4px solid var(--line); color: var(--ink-2); }
 .rungs span.on { border-top-color: var(--keep); }

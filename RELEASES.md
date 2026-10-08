@@ -6,6 +6,22 @@ How every release ships:
 3. **GitHub re-runs everything on each push** (Actions, "Checks"), and probes the real museum APIs every morning, which the build workspace can't reach. A commit message containing `[live]` runs that probe immediately; every release commit uses it.
 4. **At most one small usability improvement per release,** listed here so you can veto it. Never a change to gestures, saved data, or anything you'd have to relearn without asking first.
 
+## 0.6.0-alpha (Oct 8, 2026)
+
+**Change requested by you: a better recommendation engine.** Full write-up in RECOMMENDER.md.
+- **One vocabulary.** Every work now gets a school (most records had no movement at all), a modern country and continent, and an object type. Museums' different labels for the same thing ("Impressionist", "Impressionism") now count as one.
+- **A smarter model.** It doesn't let a feature it has seen twice dominate, weighs recent decisions more, learns from works you left undecided, and knows how sure it is.
+- **It notices when your taste moves.** If its recent guesses get much worse, or you keep far less than it expected, it forgets faster and looks further afield. Portrait says so: "Your taste seems to be moving."
+- **Better candidates.** Besides museum searches, it scores hundreds of National Gallery and Cleveland works on your device each time it refills and keeps the best.
+- **Better picking.** Matches avoid repeating the school, country or artist of the last few cards; "learn" picks go where the model knows least; discovery follows an art-historical map of neighbouring schools instead of pure chance.
+- Leanings in Taste now show Schools, Countries and Types of work.
+- Your existing history is re-read in the new vocabulary automatically.
+
+**How we know it's better:** a simulation lab plays six simulated people over the real 46,600-work catalog. Matches kept rose from 54% to 64%, the fair score from 15 to 19 points, and countries seen from 23 to 37. One case nearly regressed during development (a taste that changes halfway dropped to 27%); drift detection brought it back to parity (41% vs 42%). A test now reruns the lab on every push.
+
+**Checks:** 53 unit and backend tests (new: vocabulary, model, drift, picker, simulation lab), 43 of 43 browser checks.
+**On your phone:** just keep swiping. Watch "How well we know you" over the next 50 to 100 decisions; that's the live version of the lab's score.
+
 ## 0.5.0-alpha (Oct 7, 2026)
 
 **Change requested by you: the Atlas.** Last of the three Taste releases.
