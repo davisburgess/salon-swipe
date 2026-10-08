@@ -203,7 +203,7 @@ const store = (p) => pp(p, () => JSON.parse(localStorage.getItem("pp-alpha-v1"))
   });
   await check("taste.badges", async () => {
     const total = await p.locator(".cabinet .pin").count(), n = await p.locator(".cabinet .pin.earned").count();
-    expect(total === 48, `${total} pins in the cabinet`); expect(n >= 1, "no pins shown as earned");
+    expect(total === 49, `${total} pins in the cabinet`); expect(n >= 1, "no pins shown as earned");
     expect(Object.keys((await store(p)).badges).some((k) => k === "pin:first-love:1"), "First Love not recorded");
     await p.locator(".cabinet .pin.earned").first().click(); await p.waitForSelector("#modal:not([hidden]) .walllabel");
     expect((await p.textContent("#modalBody .walllabel")).length > 10, "pin detail has no wall label");
@@ -407,6 +407,36 @@ await check("atlas.explore", async () => {
   await p.click("#modalOk");
   const s = await store(p); expect(s.explored && s.explored.JP && !s.explore, "Explore not recorded");
   expect(Object.keys(s.badges).includes("pin:expedition:1"), "Expedition not earned");
+  await ctx.close();
+});
+
+await check("quests.board", async () => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
+  await mockWorld(ctx);
+  const p = await ctx.newPage(); await p.goto(APP);
+  await pp(p, () => {
+    const swipes = Array.from({ length: 40 }, (_, i) => ({ uid: `aic:${4000 + i}`, v: i === 3 ? 2 : i % 2 ? 1 : -1, t: Date.now() - (40 - i) * 60000, f: [`style|S${i % 9}`],
+      a: { uid: `aic:${4000 + i}`, src: "aic", title: `W${i}`, place: i === 3 ? "Japan" : "France", movement: i === 3 ? "Ukiyo-e" : "Realism", kind: i === 3 ? "Print" : "Painting", year: 1830 } }));
+    localStorage.clear(); localStorage.setItem("pp-alpha-v1", JSON.stringify({ onboarded: true, swipes, badges: { "pin:_init": 1 }, levelScale: 3 }));
+  });
+  await p.reload(); await waitTop(p);
+  await p.click("#btnQuests"); await p.waitForSelector("#modal:not([hidden]) .qcard");
+  const board = await p.textContent("#modalBody");
+  expect(/For your next badge/.test(board) && /Somewhere new/.test(board) && /Make your own/.test(board), "board sections");
+  expect(/finish Japonisme/.test(board), "no Japonisme quest for the missing half");
+  await p.waitForTimeout(450); await p.screenshot({ path: `${OUT}/questboard.png` });
+  expect(!/love a [aeiou]/i.test(board), "article: 'a' before a vowel");
+  await p.selectOption("#qKind", "movement"); await p.selectOption("#qVal", "Impressionism"); await p.click('.qbuild [data-len="10"]'); await p.click("#qGo");
+  await p.waitForSelector("#questBar:not([hidden])"); await waitTop(p);
+  expect(/Impressionism · 0 of 10/.test(await p.textContent("#questBar")), `bar: ${await p.textContent("#questBar")}`);
+  expect(/Quest: Impressionism: 10 to go/.test(await p.textContent(".card.top .cue")), `cue: ${await p.textContent(".card.top .cue")}`);
+  for (let i = 0; i < 10; i++) { await waitTop(p); const mv = await pp(p, () => __pp.deck.queue[0].movement); expect(/Impressionism/.test(mv || ""), `card ${i}: ${mv}`); await press(p, i % 3 ? "ArrowRight" : "ArrowUp"); }
+  await p.waitForSelector("#modal:not([hidden])", { timeout: 4000 }); const done = await p.textContent("#modalBody");
+  expect(/Quest complete/.test(done) && /10 works/.test(done), `summary: ${done.slice(0, 120)}`);
+  await p.screenshot({ path: `${OUT}/questdone.png` }); await p.click("#modalOk");
+  const s = await store(p); expect(s.quests.at(-1).done && !s.quest, "quest not recorded");
+  expect(Object.keys(s.badges).includes("pin:pilgrim:1") && Object.keys(s.badges).includes("pin:japonisme:1"), "Pilgrim and Japonisme not earned");
+  expect(await p.isHidden("#questBar"), "quest bar still showing");
   await ctx.close();
 });
 

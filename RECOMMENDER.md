@@ -37,4 +37,4 @@ Caveat: simulated tastes are written in country, date, type and artist, which is
 ## Not yet
 - **Image similarity.** Embeddings of each picture would let the model learn "looks like this" across schools. It needs a one-time offline pass over the collections (a GitHub workflow), then a small file per collection.
 - **Your real history in the lab.** With a backup file, the lab can replay your actual decisions and tune on them.
-- **Quests** (next release). Museum Day and Explore are already "focus" constraints on the deck; quests generalize them to any criterion (movement, era, place, artist, type) and to the next badge.
+- **Quests** shipped in 0.7.0 (quests.js): a criterion focuses the deck; the recommender still personalizes within it.

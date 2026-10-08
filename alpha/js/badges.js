@@ -48,7 +48,7 @@ export function badgeStats(state, model) {
   const st = { decided: 0, loves: 0, keeps: 0, passes: 0, why: 0, styles: new Set(), cents: new Set(), countries: new Set(), keptContinents: new Set(),
     lovedCountries: new Set(), srcAny: {}, lovesBySrc: {}, onViewKeeps: 0, secondLook: 0, deepTime: false, wetPaint: false, bookends: false,
     sides: {}, runMax: 0, perDay: {}, afterHours: false, hotTake: false, lovesByArtist: {}, changeOfHeart: false,
-    days: Object.keys(state.museumDays || {}).length, explores: Object.keys(state.explored || {}).length,
+    days: Object.keys(state.museumDays || {}).length, explores: Object.keys(state.explored || {}).length, questsDone: (state.quests || []).filter((q) => q.done).length,
     undo: (state.counters && state.counters.undo) || 0, accuracy: model ? model.accuracy : null, eye: {}, total: sw.length };
   const passesByStyle = {}, keepsWindow = [];
   const oldest = new Date().getFullYear() - 2000;
@@ -147,6 +147,8 @@ export const BADGES = [
   { id: "pentimento", fam: "habits", name: "Pentimento", em: "pentimento", how: "Change your mind 10 times with Undo.", progress: (s) => ({ have: s.undo, need: 10 }), test: (s) => s.undo >= 10, fact: "Italian for 'repentance': an earlier idea showing through the paint. X-rays find them under many Old Masters." },
 
   { id: "salon-hang", fam: "habits", name: "Salon Hang", em: "salon", how: "Keep works.", unit: "keeps", tiers: [50, 150, 400, 1000], value: (s) => s.keeps, fact: "The Paris Salon hung paintings floor to ceiling. Your wall is getting there." },
+
+  { id: "pilgrim", fam: "habits", name: "Pilgrim", em: "shell", how: "Finish quests (Museum Days and Explores count).", unit: "quests", tiers: [1, 5, 15, 40], value: (s) => s.questsDone, fact: "Medieval pilgrims bought cheap lead-tin badges at shrines and pinned them to their hats. You're collecting the same way." },
 
   { id: "grand-tour", fam: "explorer", name: "Grand Tour", em: "compass", how: "Judge works from many movements.", unit: "movements", tiers: [10, 25, 39, 60], value: (s) => s.range, fact: "Young British aristocrats spent months touring Italy's art in the 1700s. You're doing it with a thumb." },
   { id: "time-machine", fam: "explorer", name: "Time Machine", em: "clock", how: "Judge works from many centuries.", unit: "centuries", tiers: [6, 10, 15, 20], value: (s) => s.centuries, fact: "Five thousand years, give or take, in a single deck." },
@@ -321,6 +323,7 @@ const E = {
   magnifier: "M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM15.5 15.5L21 21",
   bolt: "M13 2.5L5 13.5h6l-1 8 8-11h-6z",
   target: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10zM12 11a1 1 0 1 0 0 2 1 1 0 0 0 0-2z",
+  shell: "M12 20.5L3.5 9.2a9.5 9.5 0 0 1 17 0zM12 20.5L7.2 6M12 20.5V4.8M12 20.5l4.8-14.5M10 21.5h4",
   question: "M9 9a3 3 0 1 1 4.2 2.8c-.9.4-1.2 1-1.2 2.2M12 17.5h.01",
 };
 
@@ -374,5 +377,6 @@ export function pinSVG(b, tier = 1, mode = "earned") {
     <path d="M24 34a30 30 0 0 1 22-18" stroke="#fff" stroke-opacity=".35" stroke-width="2.2" fill="none" stroke-linecap="round"/></g>${seal}</svg>`;
 }
 
+export const emblemSVG = (name) => `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${E[name]}" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 export const tierName = (b, t) => (b.tiers && TIERS[t] ? TIERS[t].name : "");
 export const countryName = (iso) => (COUNTRY[iso] ? COUNTRY[iso].name : iso);

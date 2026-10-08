@@ -9,8 +9,9 @@ import { load, save, saveFailed, record, STORE_KEY, mergeSwipes, backupPayload, 
 import { stats, levelFor, LEVELS, LEVEL_SCALE, profileFacts, templateNote } from "./rewards.js";
 import { loadWorld, countryStats, grandTour, mapSVG, timelineSVG, EXPLORE_LENGTH } from "./atlas.js";
 import { geoOf, COUNTRY } from "./geo.js";
+import { newQuest, matches as questMatches, suggestions as questSuggestions, questForBadge, BUILDER, critFromBuilder, QUEST_LENGTHS } from "./quests.js";
 import { museumStats, stampSVG, dayActive, DAY_LENGTH, STAMP_AT } from "./museums.js";
-import { BADGES, FAMILIES, TIERS, APP_RUNGS, badgeStats, award, unsealedAt, pinState, closest, eyeTitle, pinSVG, ensureDefs, tierName, byId as badgeById } from "./badges.js";
+import { emblemSVG, BADGES, FAMILIES, TIERS, APP_RUNGS, badgeStats, award, unsealedAt, pinState, closest, eyeTitle, pinSVG, ensureDefs, tierName, byId as badgeById } from "./badges.js";
 import * as api from "./sync.js";
 import { analyze } from "./vision.js";
 import { APP } from "./config.js";
@@ -89,8 +90,7 @@ function cueFor(a) {
   if (a._look) return a._look >= MAX_DEFERS
     ? { k: "look", text: "Last look. Choosing Later again marks it undecided." }
     : { k: "look", text: "Second look. The wall text is open to help you decide." };
-  if (state.explore && state.explore.left > 0) { const g = geoOf(a); if (g && g.iso === state.explore.iso) return { k: "seed", text: `Exploring ${COUNTRY[g.iso].name}: ${state.explore.left} to go` }; }
-  if (dayActive(state) && a.src === state.museumDay.src) return { k: "seed", text: `Museum Day at the ${MUSEUMS[a.src].name}: ${state.museumDay.left} to go` };
+  const q = activeQuest(); if (q && questMatches(q, a)) return { k: "seed", text: `${q.cue}: ${q.left} to go` };
   if (a._why === "newstyle" && a._seed) return { k: "seed", text: `New style: ${a._seed.label}, ${a._seed.years}`, sub: a._seed.why };
   if (a._seed) { const i = OPENING.findIndex((o) => o.id === a._seed.id) + 1;
     return { k: "seed", text: `Opening hang ${i} of ${OPENING.length}: ${a._seed.label}, ${a._seed.years}`, sub: a._seed.why }; }
@@ -153,6 +153,7 @@ function dropBroken(a) {
 }
 
 function renderStage() {
+  renderQuestBar();
   if (currentView !== "look") return;
   stage.innerHTML = "";
   const waiting = state.later.length;
@@ -164,9 +165,9 @@ function renderStage() {
     deck.refill().then(() => {
       deck.topUp();
       if (deck.queue.length) return renderStage();
-      if (state.explore && state.explore.left > 0) {   // ran out of works from that country: back to everything
-        const name = COUNTRY[state.explore.iso].name; state.explore = null; persist({ meta: true });
-        toast(`That's all we can find from ${name} for now. Back to every museum.`); return renderStage();
+      if (activeQuest()) {   // ran out of works for the quest: back to everything
+        const q = activeQuest(); endQuest(false);
+        toast(`That's all we can find for "${q.label}" right now. Back to every museum.`); return renderStage();
       }
       stage.innerHTML = `<div class="empty"><p>The museums aren't answering right now. Check your connection, then try again.</p><button class="btn" id="retry">Try again</button></div>`;
       $("#retry").onclick = renderStage;
@@ -252,10 +253,11 @@ function decide(v, vel) {
   if (predicted != null && v !== 0) rec.p = Math.round(predicted * 100) / 100;   // for "Called it"
   rec.m = a._look ? "look" : a._seed ? "seed" : a._why || null;   // how the card was picked, so the app is scored fairly
   if (a._look) rec.look = a._look;
-  const day = state.museumDay;
-  if (day && day.left > 0 && a.src === day.src) { day.left--; if (!day.left) finishDay(day.src); }
-  const ex = state.explore, g = ex && ex.left > 0 ? geoOf(a) : null;
-  if (g && g.iso === ex.iso) { ex.left--; if (!ex.left) finishExplore(ex.iso); }
+  const quest = activeQuest();
+  if (quest && questMatches(quest, a)) {
+    quest.left--; quest.seen++; if (v > 0) quest.kept++; if (v === 2) { quest.loved++; quest.picks.push(a.uid); }
+    if (!quest.left) finishQuest(quest);
+  }
   markSeedSeen(a);
   model.learn(rec.f, v);
   if (state.swipes.length % 25 === 0) model.drifting = driftFromHistory(state.swipes);   // between full retrains
@@ -740,6 +742,7 @@ function openPin(id) {
     $("#modalOk").onclick = closeModal; return;
   }
   const mode = !ps.tier ? "locked" : ps.sealed && !ps.shown ? "sealed" : "earned";
+  const qfor = questForBadge(b.id, bst, state, (id) => pinState(state, badgeById[id] || b, bst, level).tier);
   const tier = ps.sealed && !ps.shown ? ps.sealed : (ps.shown || (ps.next ? ps.next.tier : 1));
   const ladder = b.tiers ? `<ol class="ladder">${b.tiers.map((need, i) => { const t = i + 1, got = ps.tier >= t, sealedT = got && !(TIERS[t].level <= level);
     return `<li class="${got ? (sealedT ? "sealed" : "got") : ""}"><b>${TIERS[t].name}</b><span>${need} ${esc(b.unit || "")}</span><span>${got ? (sealedT ? `Sealed until ${LEVELS[TIERS[t].level].name}` : "Earned") : TIERS[t].level > 0 ? `Opens at ${LEVELS[TIERS[t].level].name}` : ""}</span></li>`; }).join("")}</ol>` : "";
@@ -749,15 +752,17 @@ function openPin(id) {
     <h2>${esc(b.name)}</h2>
     <p>${esc(b.how)}</p>${ladder}${prog}
     <p class="walllabel">${esc(b.fact)}</p>
+    ${qfor ? `<button class="btn" id="pinQuest" type="button">Start a quest for this: ${esc(questLabel(qfor))}</button>` : ""}
     <button class="btn primary" id="modalOk">Close</button>`);
   $("#modalOk").onclick = closeModal;
+  const pq = $("#pinQuest"); if (pq) pq.onclick = () => startQuest({ crit: qfor.crit, total: qfor.total, goal: b.id });
 }
 
 /* ---------- Museums ---------- */
 function museumsHTML() {
   const ms = museumStats(state), on = state.settings.sources || {};
   const pct = (x) => `${Math.round(x * 100)}%`;
-  const day = dayActive(state) ? state.museumDay : null;
+  const day = dayActive(state) ? activeQuest() : null;
   const order = Object.keys(MUSEUMS).sort((a, b) => (ms.by[b].stampAt ? 1 : 0) - (ms.by[a].stampAt ? 1 : 0) || (ms.by[a].stampAt || 0) - (ms.by[b].stampAt || 0));
   const stamps = order.map((k) => `<figure>${stampSVG(k, ms.by[k])}</figure>`).join("");
   const rows = [...ms.ranked, ...Object.values(ms.by).filter((m) => m.decided < STAMP_AT).sort((a, b) => b.decided - a.decided)]
@@ -774,38 +779,116 @@ function museumsHTML() {
     ${views.length ? `<p class="kicker">On view now</p><p class="small">${views.map((m) => `<b>${m.onView}</b> of your keeps in ${esc(city(m.src))}`).join(" · ")}.</p><button class="btn small" id="seeOnView" type="button">See them in Kept</button>` : ""}
     <div class="museumday">
       <p class="kicker">Museum Day</p>
-      ${day ? `<p class="small">You're spending the day at the <b>${esc(MUSEUMS[day.src].name)}</b>: ${day.left} of ${DAY_LENGTH} to go.</p><button class="btn small" id="dayEnd" type="button">End the day early</button>`
+      ${day ? `<p class="small">You're spending the day at the <b>${esc(MUSEUMS[day.crit.src].name)}</b>: ${day.left} of ${DAY_LENGTH} to go.</p><button class="btn small" id="dayEnd" type="button">End the day early</button>`
         : `<p class="small">Spend your next ${DAY_LENGTH} works at one museum. Finish to gild its stamp.</p>
           <div class="daybtns">${Object.keys(MUSEUMS).filter((k) => on[k] !== false).map((k) => `<button class="chip" type="button" data-day="${k}">${esc(MUSEUMS[k].short)}</button>`).join("")}</div>`}
     </div></section>`;
 }
 function startDay(src) {
-  state.explore = null;
   if (!isAvailable(src)) { toast(`The ${MUSEUMS[src].name} isn't answering right now. Try another museum.`); return; }
-  state.museumDay = { src, left: DAY_LENGTH, t: Date.now() }; persist({ meta: true });
-  deck.focusMuseum(src); show("look");
-  toast(`Museum Day at the ${MUSEUMS[src].name}. ${DAY_LENGTH} works.`);
-  deck.refill().then(() => { deck.topUp(); renderStage(); });
+  startQuest({ crit: { src }, total: DAY_LENGTH, kind: "museum", cue: `Museum Day at the ${MUSEUMS[src].name}`, label: `Museum Day at the ${MUSEUMS[src].name}` });
 }
-function endDay() {
-  state.museumDay = null; persist({ meta: true }); toast("Museum Day ended. Back to every museum.");
-  renderTaste();
+function endDay() { endQuest(true); renderTaste(); }
+
+/* ---------- Quests ---------- */
+// Museum Day and Explore are quests too; this is the one place quests start, end and finish.
+function activeQuest() { const q = state.quest; return q && q.left > 0 ? q : null; }
+async function startQuest({ crit, total = 20, kind = "quest", label, cue, goal = null }) {
+  if (activeQuest()) endQuest(false);
+  const q = newQuest(state, crit, total, { kind, goal, label });
+  q.cue = cue || `Quest: ${q.label}`;
+  state.quest = q; persist({ meta: true });
+  closeModal(); deck.focusQuest(); show("look");
+  stage.innerHTML = `<div class="empty"><p>Looking for ${esc(q.label.charAt(0).toLowerCase() + q.label.slice(1))}…</p></div>`;
+  await deck.refill(); deck.topUp();
+  if (!deck.queue.length || !questMatches(q, deck.queue[0])) {
+    state.quest = null; persist({ meta: true }); deck.focusQuest();
+    toast(`We couldn't find enough for "${q.label}" just now. Try another quest.`);
+  } else toast(kind === "museum" ? `${q.label}. ${total} works.` : kind === "explore" ? `${q.label}. ${total} works.` : `Quest started: ${q.label}. ${total} works.`);
+  renderStage();
 }
-function finishDay(src) {
-  state.museumDays = state.museumDays || {}; state.museumDays[src] = Date.now(); state.museumDay = null;
+function endQuest(say = true) {
+  const q = state.quest; if (!q) return;
+  state.quests = state.quests || []; state.quests.push({ label: q.label, kind: q.kind, crit: q.crit, total: q.total, seen: q.seen, kept: q.kept, loved: q.loved, t: q.t, end: Date.now(), done: false });
+  state.quests = state.quests.slice(-60); state.quest = null; persist({ meta: true });
+  if (say) toast(q.kind === "museum" ? "Museum Day ended. Back to every museum." : q.kind === "explore" ? "Explore ended. Back to every museum." : "Quest ended. Back to everything.");
+  renderStage();
+}
+function finishQuest(q) {
+  state.quests = state.quests || []; state.quests.push({ label: q.label, kind: q.kind, crit: q.crit, total: q.total, seen: q.seen, kept: q.kept, loved: q.loved, t: q.t, end: Date.now(), done: true });
+  state.quests = state.quests.slice(-60);
+  if (q.kind === "museum") { state.museumDays = state.museumDays || {}; state.museumDays[q.crit.src] = Date.now(); }
+  if (q.kind === "explore") { state.explored = state.explored || {}; state.explored[q.crit.iso] = Date.now(); }
+  state.quest = null;
   setTimeout(() => {
-    openModal(`<p class="kicker">Museum Day complete</p><h2>${esc(MUSEUMS[src].name)}</h2>
-      <div class="pinhead">${stampSVG(src, museumStats(state).by[src])}</div>
-      <p>Twenty works, one museum. Its passport stamp now has a gilt border. Back to every museum from here.</p>
-      <button class="btn primary" id="modalOk">Keep looking</button>`);
-    $("#modalOk").onclick = closeModal;
+    const st = stats(state, model), pct = (x) => `${Math.round(x * 100)}%`;
+    const pins = Object.entries(state.badges).filter(([k, t]) => k.startsWith("pin:") && !k.includes("_init") && t >= q.t).map(([k]) => { const [, id, tier] = k.split(":"); return { b: badgeById[id], tier: +tier }; }).filter((x) => x.b);
+    const loves = q.picks.map((uid) => state.swipes.find((x) => x.uid === uid)).filter(Boolean).slice(-4);
+    const head = q.kind === "museum" ? "Museum Day complete" : q.kind === "explore" ? "Explore complete" : "Quest complete";
+    const extra = q.kind === "museum" ? `<div class="pinhead">${stampSVG(q.crit.src, museumStats(state).by[q.crit.src])}</div><p class="small">Its passport stamp now has a gilt border.</p>`
+      : q.kind === "explore" ? `<p class="small">The Atlas has updated its colors.</p>` : "";
+    openModal(`<p class="kicker">${head}</p><h2>${esc(q.label)}</h2>${extra}
+      <p>${q.seen} works. You kept <b>${pct(q.kept / Math.max(1, q.seen))}</b> of them${st.decided ? `, against ${pct(st.keepRate)} overall` : ""}${q.loved ? `, and loved ${q.loved}` : ""}.</p>
+      ${loves.length ? `<div class="qloves">${loves.map((x) => `<img src="${esc(thumb(x.a))}" alt="${esc(x.a.title)}" loading="lazy">`).join("")}</div>` : ""}
+      ${pins.length ? `<p class="kicker">Pins earned on the way</p><div class="pinrow">${pins.map(({ b, tier }) => `<figure>${pinSVG(b, tier)}<figcaption>${esc(b.name)}</figcaption></figure>`).join("")}</div>` : ""}
+      <button class="btn primary" id="modalOk">Keep looking</button><button class="btn" id="modalNext" type="button">Another quest</button>`);
+    $("#modalOk").onclick = closeModal; $("#modalNext").onclick = () => { closeModal(); openQuestBoard(); };
   }, 700);
 }
+function renderQuestBar() {
+  const bar = $("#questBar"), q = activeQuest(); if (!bar) return;
+  bar.hidden = !q; if (!q) return;
+  $("#questText").textContent = `${q.label} · ${q.total - q.left} of ${q.total}`;
+}
+let boardSugs = [];
+function openQuestBoard() {
+  ensureDefs();
+  const bst = badgeStats(state, model), earned = (id) => { let k = 0; for (let t = 1; t <= 4; t++) if (state.badges[`pin:${id}:${t}`]) k = t; return k; };
+  const sg = questSuggestions(state, model, bst, earned), q = activeQuest();
+  boardSugs = [...sg.badge, ...sg.deeper, ...sg.fresh];
+  let i = 0;
+  const card = (x, icon) => { const n = i++, goal = x.goal && badgeById[x.goal];
+    return `<button type="button" class="qcard" data-s="${n}">${goal ? pinSVG(goal, Math.max(1, earned(goal.id) + (goal.tiers ? 1 : 0)), "locked") : `<span class="qicon">${emblemSVG(icon)}</span>`}
+      <span><b>${esc(questLabel(x))}</b><small>${esc(x.why || "")}</small><small>${x.total} works</small></span></button>`; };
+  const row = (title, list, icon) => (list.length ? `<h3>${title}</h3><div class="qcards">${list.map((x) => card(x, icon)).join("")}</div>` : "");
+  const kinds = Object.entries(BUILDER);
+  openModal(`<p class="kicker">Quests</p><h2>Where to next?</h2>
+    <p class="small muted">A quest points your next works at one thing. You still get your best matches within it.</p>
+    ${q ? `<div class="qactive"><p class="small">On a quest: <b>${esc(q.label)}</b>, ${q.total - q.left} of ${q.total}.</p><button class="btn small" id="qEnd" type="button">End it</button></div>` : ""}
+    ${row("For your next badge", sg.badge)}${row("Go deeper", sg.deeper, "magnifier")}${row("Somewhere new", sg.fresh, "compass")}
+    <h3>Make your own</h3>
+    <div class="qbuild">
+      <label>Look at <select id="qKind">${kinds.map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join("")}</select></label>
+      <select id="qVal" aria-label="Which"></select><input id="qArtist" type="text" placeholder="Artist's name" aria-label="Artist's name" hidden>
+      <div class="chips" role="group" aria-label="How many works">${QUEST_LENGTHS.map((n) => `<button type="button" class="chip" data-len="${n}" aria-pressed="${n === 20}">${n} works</button>`).join("")}</div>
+      <button class="btn primary" id="qGo" type="button">Start</button>
+    </div>
+    <button class="btn" id="modalOk" type="button">Close</button>`);
+  $("#modalOk").onclick = closeModal;
+  const end = $("#qEnd"); if (end) end.onclick = () => { endQuest(true); closeModal(); };
+  $$(".qcard").forEach((b) => (b.onclick = () => { const x = boardSugs[+b.dataset.s]; startQuest({ crit: x.crit, total: x.total, goal: x.goal || null }); }));
+  let len = 20;
+  $$(".qbuild [data-len]").forEach((b) => (b.onclick = () => { len = +b.dataset.len; $$(".qbuild [data-len]").forEach((c) => c.setAttribute("aria-pressed", c === b)); }));
+  const fill = () => {
+    const k = $("#qKind").value, opts = BUILDER[k].options;
+    $("#qArtist").hidden = !!opts; $("#qVal").hidden = !opts;
+    if (opts) $("#qVal").innerHTML = opts().map(([v, l]) => `<option value="${esc(String(v))}">${esc(l)}</option>`).join("");
+  };
+  $("#qKind").onchange = fill; fill();
+  $("#qGo").onclick = () => {
+    const k = $("#qKind").value, v = BUILDER[k].options ? $("#qVal").value : $("#qArtist").value.trim();
+    if (!v) { toast("Type an artist's name first."); return; }
+    startQuest({ crit: critFromBuilder(k, v), total: len });
+  };
+}
+const questLabel = (x) => newQuest({ swipes: [] }, x.crit, x.total).label;
+$("#btnQuests").onclick = openQuestBoard;
+$("#questEnd").onclick = () => endQuest(true);
 
 /* ---------- Atlas ---------- */
 let atlasSel = null;
 function atlasHTML() {
-  const cs = countryStats(state), ex = state.explore && state.explore.left > 0 ? state.explore : null;
+  const cs = countryStats(state), aq = activeQuest(), ex = aq && aq.kind === "explore" ? { iso: aq.crit.iso, left: aq.left } : null;
   const names = (l) => l.map((c) => COUNTRY[c.iso] ? COUNTRY[c.iso].name : c.iso);
   const seen = [...cs.list].sort((a, b) => b.decided - a.decided);
   return `<section id="t-atlas" class="tsec"><h2 class="sech">Atlas</h2>
@@ -824,7 +907,7 @@ function atlasHTML() {
 async function fillAtlas() {
   const box = $("#atlasMap"); if (!box) return;
   $$("#t-atlas [data-iso]").forEach((b) => (b.onclick = () => selectCountry(b.dataset.iso)));
-  const exB = $("#exEnd"); if (exB) exB.onclick = () => { state.explore = null; persist({ meta: true }); toast("Explore ended. Back to every museum."); renderTaste(); };
+  const exB = $("#exEnd"); if (exB) exB.onclick = () => { endQuest(true); renderTaste(); };
   try {
     const world = await loadWorld(); if (!document.body.contains(box)) return;
     box.innerHTML = mapSVG(world, countryStats(state), { selected: atlasSel, tour: grandTour(state) });
@@ -838,8 +921,8 @@ function selectCountry(iso, quiet) {
   const path = $(`#atlasMap path[data-iso="${iso}"]`); if (path) { path.classList.add("sel"); path.parentNode.appendChild(path); }
   const c = countryStats(state).by[iso], meta = COUNTRY[iso];
   const name = meta ? meta.name : ((path && path.querySelector("title")) ? path.querySelector("title").textContent.split(",")[0].split(":")[0] : iso);
-  const busy = (state.explore && state.explore.left > 0) || dayActive(state);
-  const btn = meta ? `<button class="btn small" id="exGo" type="button" ${busy ? "disabled" : ""}>Explore ${esc(name)}</button>${busy ? `<p class="small muted">Finish or end the current Explore or Museum Day first.</p>` : ""}` : `<p class="small muted">We can't reliably find art from here yet.</p>`;
+  const busy = !!activeQuest();
+  const btn = meta ? `<button class="btn small" id="exGo" type="button">Explore ${esc(name)}</button>${busy ? `<p class="small muted">Starting this ends your current quest.</p>` : ""}` : `<p class="small muted">We can't reliably find art from here yet.</p>`;
   const places = c ? [...c.places.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([p]) => p) : [];
   $("#atlasPanel").innerHTML = c
     ? `<h3>${esc(name)}</h3><p class="small">${c.decided} seen · ${c.keeps} kept (${Math.round(c.keepRate * 100)}%) · ${c.loves} loved${c.topStyle ? ` · mostly ${esc(c.topStyle)}` : ""}</p>
@@ -848,24 +931,9 @@ function selectCountry(iso, quiet) {
   const go = $("#exGo"); if (go) go.onclick = () => startExplore(iso);
   if (!quiet) $("#atlasPanel").scrollIntoView({ block: "nearest", behavior: reduceMotion ? "auto" : "smooth" });
 }
-async function startExplore(iso) {
+function startExplore(iso) {
   const name = COUNTRY[iso].name;
-  state.museumDay = null; state.explore = { iso, left: EXPLORE_LENGTH, t: Date.now() }; persist({ meta: true });
-  deck.focusPlace(iso); show("look");
-  stage.innerHTML = `<div class="empty"><p>Looking for art from ${esc(name)}…</p></div>`;
-  await deck.refill(); deck.topUp();
-  if (!deck.queue.length) { state.explore = null; persist({ meta: true }); toast(`We couldn't find works from ${name} just now. Try another country.`); }
-  else toast(`Exploring ${name}. ${EXPLORE_LENGTH} works.`);
-  renderStage();
-}
-function finishExplore(iso) {
-  state.explored = state.explored || {}; state.explored[iso] = Date.now(); state.explore = null;
-  setTimeout(() => {
-    openModal(`<p class="kicker">Explore complete</p><h2>${esc(COUNTRY[iso].name)}</h2>
-      <p>Twelve works from ${esc(COUNTRY[iso].name)}. The Atlas has updated its colors. Back to every museum from here.</p>
-      <button class="btn primary" id="modalOk">Keep looking</button>`);
-    $("#modalOk").onclick = closeModal;
-  }, 700);
+  startQuest({ crit: { iso }, total: EXPLORE_LENGTH, kind: "explore", label: `Exploring ${name}`, cue: `Exploring ${name}` });
 }
 
 /* ---------- Kept ---------- */
@@ -992,6 +1060,7 @@ function absorb(d) {
   if (Number.isFinite(d.seedIdx)) state.seedIdx = Math.max(state.seedIdx, d.seedIdx);
   if (Array.isArray(d.notes)) { const ids = new Set(state.notes.map((n) => n.id)); state.notes = state.notes.concat(d.notes.filter((n) => n && !ids.has(n.id))); }
   if (d.badges) state.badges = { ...d.badges, ...state.badges };
+  if (Array.isArray(d.quests) && !(state.quests || []).length) state.quests = d.quests;
   if (d.explored) state.explored = { ...d.explored, ...(state.explored || {}) };
   if (d.museumDays) state.museumDays = { ...d.museumDays, ...(state.museumDays || {}) };
   state.sync.dirty.push(...(d.swipes || []).map((s) => s.uid));
@@ -1072,6 +1141,12 @@ function handlePairLink() {
   renderLevelChip();
   show("look");
   recalibrateLevels();
+  if (!state.quests) {   // quest history starts with the Museum Days and Explores you already finished
+    state.quests = [...Object.entries(state.museumDays || {}).map(([src, t]) => ({ label: `Museum Day at the ${MUSEUMS[src] ? MUSEUMS[src].name : src}`, kind: "museum", crit: { src }, t, end: t, done: true })),
+      ...Object.entries(state.explored || {}).map(([iso, t]) => ({ label: `Exploring ${COUNTRY[iso] ? COUNTRY[iso].name : iso}`, kind: "explore", crit: { iso }, t, end: t, done: true }))];
+    if (state.museumDay || state.explore) { state.museumDay = null; state.explore = null; }
+    persist({ meta: true });
+  }
   if (!handlePairLink()) onboarding();
   if (state.onboarded && $("#modal").hidden) openCabinet(); else if (!state.badges["pin:_init"]) { award(state, badgeStats(state, model), currentLevel()); state.badges["pin:_init"] = Date.now(); persist({ meta: true }); }
   await api.configure();

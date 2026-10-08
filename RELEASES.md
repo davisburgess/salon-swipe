@@ -6,6 +6,29 @@ How every release ships:
 3. **GitHub re-runs everything on each push** (Actions, "Checks"), and probes the real museum APIs every morning, which the build workspace can't reach. A commit message containing `[live]` runs that probe immediately; every release commit uses it.
 4. **At most one small usability improvement per release,** listed here so you can veto it. Never a change to gestures, saved data, or anything you'd have to relearn without asking first.
 
+## 0.7.0-alpha (Oct 8, 2026)
+
+**Change requested by you: quests.**
+- **A quest points your next 10, 20 or 30 works at one thing:** a movement, school, era, country, continent, type of work, artist or museum, or somewhere new (countries, movements or centuries you haven't seen). Inside a quest the engine still personalizes: your best matches from the Baroque, not random Baroque.
+- **Quests button** beside New style opens the quest board:
+  - *For your next badge*, built from your own progress: the missing half of a Lineages pair ("Love an Impressionist work to finish Japonisme"), the country Silk Road still needs, the continent All Six still needs, new countries for Passport, new movements for Grand Tour, new centuries for Time Machine, a work over 2,000 years old for Deep Time.
+  - *Go deeper*: your strongest school, your top country, the artist you love most.
+  - *Somewhere new*: a school you've barely seen, countries and centuries you haven't.
+  - *Make your own*: pick what to look at and how many works.
+- **Every badge can start its own quest:** tap a pin, then "Start a quest for this".
+- **While on a quest,** a bar above the art shows your progress with an End button, and each card says how many are left.
+- **When it's done,** a summary shows how many you kept (against your overall rate), your Loves from the quest, and the pins you earned on the way.
+- **New pin, Pilgrim** (bronze to lapis: 1, 5, 15, 40 quests). Medieval pilgrims collected lead-tin badges at shrines. 49 pins.
+- **Museum Day and Explore are now quests** under the hood: same cards, same stamps and records, one engine. Your finished ones count toward Pilgrim.
+- Quests look in the on-device collections first (by date, type and place), then ask each museum, and keep only works that really count. If a quest runs dry, it says so and returns to everything.
+
+**Review found and fixed**
+- Quest suggestions said "love a Impressionist work"; articles now follow the word.
+- The quest board numbered cards that have no order; they now carry icons instead.
+
+**Checks:** 55 unit and backend tests (new: quest criteria, labels and searches; badge-linked suggestions), 44 of 44 browser checks (new: quests.board walks the board, makes a 10-work Impressionism quest, finishes it and checks the summary and pins; Museum Day and Explore checks pass on the new engine).
+**On your phone:** tap Quests under the art. Start one from "For your next badge", finish it, and read the summary.
+
 ## 0.6.0-alpha (Oct 8, 2026)
 
 **Change requested by you: a better recommendation engine.** Full write-up in RECOMMENDER.md.

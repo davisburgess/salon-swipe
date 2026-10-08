@@ -9,8 +9,7 @@
 import { OPENING, BROWSE_TERMS } from "./curation.js";
 import { features } from "./model.js";
 import { workKey, norm, shuffle } from "./util.js";
-import { geoOf } from "./geo.js";
-import { exploreTerm } from "./atlas.js";
+import { matches as questMatches, queries as questQueries } from "./quests.js";
 import { choose, retrieve, planQuery } from "./recommend.js";
 
 export const ARTIST_GAP = 6, LATER_MIN = 15, LATER_MAX = 25, MAX_DEFERS = 3, POOL_TARGET = 24;
@@ -57,8 +56,8 @@ export class Deck {   // options: { state, model, search, isAvailable, sampleLoc
   /* ---------- sources ---------- */
   sources() {
     const on = this.state.settings.sources || {};
-    const day = this.state.museumDay;   // Museum Day: one museum only, while it's reachable
-    if (day && day.left > 0 && this.isAvailable(day.src)) return [day.src];
+    const q = this.quest();   // a quest for one museum (Museum Day) uses only that museum, while it's reachable
+    if (q && q.crit.src && this.isAvailable(q.crit.src)) return [q.crit.src];
     return Object.keys(SRC_WEIGHT).filter((s) => on[s] !== false && this.isAvailable(s));
   }
   pickSource() {
@@ -96,26 +95,32 @@ export class Deck {   // options: { state, model, search, isAvailable, sampleLoc
     if (this.loading) return this.loading;
     this.loading = (async () => {
       this.seedCursor = Math.max(this.seedCursor, this.state.seedIdx || 0);
-      const onDay = this.focused();   // the opening hang waits during a Museum Day or an Explore
+      const onDay = this.focused();   // the opening hang waits during a quest
       if (!onDay && this.seedCursor < OPENING.length) {
         const seeds = OPENING.slice(this.seedCursor, this.seedCursor + 3);
         this.seedCursor += seeds.length;
         const got = await Promise.all(seeds.map((s) => this.fetchSeed(s)));
         this.seedBuf.push(...this.dedupe(got.filter(Boolean)));
       }
-      const ex = this.state.explore && this.state.explore.left > 0 ? this.state.explore : null;
-      if (ex) {
-        // Explore a country: ask every museum for it, keep only works that really come from there.
+      const quest = this.quest();
+      if (quest && Object.keys(quest.crit).some((k) => k !== "src")) {
+        // A quest: look in the on-device collections and ask each museum, keep only works that count.
+        const fits = (a) => questMatches(quest, a);
         let found = 0;
-        for (const src of shuffle(this.sources(), this.rand)) {
-          if (this.pool.length >= 12) break;
-          const q = exploreTerm(ex.iso, src); if (!q) continue;
+        if (this.sampleLocal) for (const src of this.sources().filter((s) => s === "nga" || s === "cma")) {
           try {
-            const got = this.dedupe((await this.search(src, q, { limit: 24 })).filter((a) => { const g = geoOf(a); return g && g.iso === ex.iso; }));
-            this.pool.push(...got); found += got.length;
-          } catch (e) { /* next museum */ }
+            const recs = this.dedupe((await this.sampleLocal(src, { shards: 3 })).filter(fits));
+            const best = this.model.trained ? retrieve(recs, this.model, { k: 10, rand: this.rand }) : recs.slice(0, 10);
+            this.pool.push(...best); found += best.length;
+          } catch (e) { /* collection unreachable */ }
         }
-        this.exploreFound = found;
+        for (const src of shuffle(this.sources().filter((s) => s !== "nga" && s !== "cma"), this.rand)) {
+          if (this.pool.length >= 16) break;
+          const qs = questQueries(quest.crit, src), term = qs.length ? qs[Math.floor(this.rand() * qs.length)] : (src === "aic" ? "" : BROWSE_TERMS[Math.floor(this.rand() * BROWSE_TERMS.length)]);
+          try { const got = this.dedupe((await this.search(src, term, { limit: 24, browse: !qs.length })).filter(fits)); this.pool.push(...got); found += got.length; }
+          catch (e) { /* next museum */ }
+        }
+        this.questFound = found;
         return;
       }
       // Score a slice of the on-device collections and keep the few worth showing (recommend.js retrieve).
@@ -204,17 +209,11 @@ export class Deck {   // options: { state, model, search, isAvailable, sampleLoc
   }
 }
 
-// Start a Museum Day: drop queued works from other museums so the next card is from this one.
-Deck.prototype.focusMuseum = function (src) {
-  this.queue = this.queue.filter((a) => a.src === src);
-  this.pool = this.pool.filter((a) => a.src === src);
-};
-
-Deck.prototype.focused = function () {
-  return !!((this.state.museumDay && this.state.museumDay.left > 0) || (this.state.explore && this.state.explore.left > 0));
-};
-// Start an Explore: drop queued works from elsewhere so the next card is from this country.
-Deck.prototype.focusPlace = function (iso) {
-  const here = (a) => { const g = geoOf(a); return g && g.iso === iso; };
-  this.queue = this.queue.filter(here); this.pool = this.pool.filter(here);
+Deck.prototype.quest = function () { const q = this.state.quest; return q && q.left > 0 ? q : null; };
+Deck.prototype.focused = function () { return !!this.quest(); };
+// Start a quest: drop queued works that don't count, so the next card does.
+Deck.prototype.focusQuest = function () {
+  const q = this.quest(); if (!q) return;
+  const fits = (a) => questMatches(q, a);
+  this.queue = this.queue.filter(fits); this.pool = this.pool.filter(fits);
 };

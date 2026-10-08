@@ -274,6 +274,25 @@ textarea { width: 100%; min-height: 84px; font-size: 12.5px; }
 .timeline .tl { fill: var(--ink-2); font: 11px var(--sans); }
 .timeline .pass { stroke: var(--ink-2); stroke-opacity: .4; stroke-width: 1.4; }
 .timeline .love { fill: #c48a2a; stroke: var(--paper); stroke-width: 1; }
+.questbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 6px; padding: 6px 6px 6px 14px; border-radius: 999px; background: var(--chip); font: 500 13.5px/1.2 var(--sans); }
+.questbar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.aux .dot { color: var(--ink-2); margin: 0 6px; }
+.qcards { display: grid; gap: 8px; }
+.qcard { display: grid; grid-template-columns: 44px 1fr; gap: 12px; align-items: center; text-align: left; border: 1px solid var(--line); background: var(--paper); border-radius: 14px; padding: 8px 12px 8px 8px; color: var(--ink); font: inherit; }
+.qcard svg { width: 44px; height: 44px; }
+.qcard b { display: block; font-weight: 600; font-size: 14.5px; }
+.qcard small { display: block; font-size: 12.5px; color: var(--ink-2); }
+.qicon { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--chip); color: var(--ink-2); }
+.qicon svg { width: 22px; height: 22px; }
+.qcard:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.modal-card h3 { margin: 10px 0 2px; }
+.qbuild { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; }
+.qbuild label { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.qbuild input[type=text] { font: inherit; font-size: 14px; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; }
+.qactive { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; border-radius: 12px; background: var(--chip); }
+.qactive p { margin: 0; }
+.qloves { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.qloves img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 4px; }
 .ladder { list-style: none; padding: 0; margin: 4px 0; display: grid; gap: 4px; font-size: 13.5px; }
 .ladder li { display: grid; grid-template-columns: 4.5rem 1fr auto; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); color: var(--ink-2); }
 .ladder li b { color: var(--ink); font-weight: 600; }

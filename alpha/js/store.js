@@ -18,7 +18,8 @@ export const blank = () => ({
   titles: [],
   museumDay: null,       // { src, left, t } while a Museum Day is on
   museumDays: {},        // src -> time a Museum Day there was finished
-  explore: null,         // { iso, left, t } while exploring a country
+  quest: null,           // the active quest (quests.js), including Museum Days and Explores
+  quests: undefined,     // finished and ended quests, newest last (built from older records on first run)
   explored: {},          // iso -> time an Explore there was finished            // history of "your eye" titles { title, t }
   level: 0,
   settings: { explore: 0.35, tone: "cheeky", sources: { aic: true, met: true, nga: true, cma: true, wd: true, vam: true, smk: true } },
@@ -110,7 +111,7 @@ export function mergeSwipes(state, incoming) {
 
 export function backupPayload(state) {
   return { app: "picture-plane", ver: SCHEMA, exported: new Date().toISOString(), swipes: state.swipes, later: state.later,
-    seedIdx: state.seedIdx, notes: state.notes, badges: state.badges, museumDays: state.museumDays, explored: state.explored, settings: state.settings };
+    seedIdx: state.seedIdx, notes: state.notes, badges: state.badges, museumDays: state.museumDays, explored: state.explored, quests: state.quests, settings: state.settings };
 }
 
 // Accepts a Picture Plane backup, a Salon Swipe backup (file or SALON1: code), or a PP1: code.

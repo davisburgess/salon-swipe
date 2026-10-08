@@ -343,8 +343,8 @@ test("place lexicon maps how museums describe place to modern countries", () => 
   assert.deepEqual(placeOf("West Africa"), { iso: null, continent: "AF" }, "continent-only places count for continents, not countries");
 });
 
-test("cabinet: 48 pins, unique ids, every rule runs on an empty history", () => {
-  assert.equal(BADGES.length, 48); assert.equal(new Set(BADGES.map((b) => b.id)).size, 48);
+test("cabinet: 49 pins, unique ids, every rule runs on an empty history", () => {
+  assert.equal(BADGES.length, 49); assert.equal(new Set(BADGES.map((b) => b.id)).size, 49);
   const st = badgeStats({ swipes: [], badges: {} }, null);
   for (const b of BADGES) assert.equal(reached(b, st), 0, b.id);
 });

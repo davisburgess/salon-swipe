@@ -5,6 +5,8 @@ import { canonMovement, schoolOf, typeOf } from "../alpha/js/vocab.js";
 import { placeOf } from "../alpha/js/geo.js";
 import { TasteModel, features, driftFromHistory } from "../alpha/js/model.js";
 import { choose, retrieve } from "../alpha/js/recommend.js";
+import { matches, label, queries, newQuest, questForBadge, suggestions, critFromBuilder } from "../alpha/js/quests.js";
+import { badgeStats } from "../alpha/js/badges.js";
 
 test("vocabulary: one name per movement, a school for every work, a short list of types", () => {
   assert.equal(canonMovement("Impressionist"), "Impressionism"); assert.equal(canonMovement("Dutch Golden Age painting"), "Dutch Golden Age");
@@ -58,4 +60,34 @@ test("simulation lab: the new engine beats the old one", async () => {
   const m = runModelOnly(); assert.ok(m.auc > m.aucV1, `model AUC: v1 ${m.aucV1.toFixed(3)}, v2 ${m.auc.toFixed(3)}`);
   const v1 = runEngine("v1"), v2 = runEngine("v2");
   assert.ok(v2.match > v1.match + 0.04, `matches kept: v1 ${(v1.match * 100).toFixed(0)}%, v2 ${(v2.match * 100).toFixed(0)}%`);
+});
+
+test("quests: criteria, labels, searches", () => {
+  const dutch = work(1, { place: "Dutch", year: 1660, kind: "Painting", movement: "Dutch Golden Age painting" });
+  const jp = work(2, { place: "Japan, Edo period", year: 1830, kind: "Print", movement: "Ukiyo-e" });
+  const q = (crit) => newQuest({ swipes: [] }, crit, 20);
+  assert.ok(matches(q({ movement: "Dutch Golden Age" }), dutch) && !matches(q({ movement: "Dutch Golden Age" }), jp));
+  assert.ok(matches(q({ school: "East Asian traditions", type: "Print" }), jp), "criteria combine");
+  assert.ok(matches(q(critFromBuilder("era", "1600:1700")), dutch) && !matches(q(critFromBuilder("era", "1600:1700")), jp));
+  assert.ok(matches(q({ iso: "JP" }), jp) && matches(q({ cont: "EU" }), dutch));
+  assert.equal(label({ movement: "Baroque" }), "Baroque"); assert.equal(label({ iso: "JP" }), "Works from Japan");
+  assert.equal(label({ type: "Print", cont: "AS" }), "Prints from Asia"); assert.equal(label({ yearFrom: 1600, yearTo: 1700 }), "1600–1700");
+  assert.deepEqual(queries({ iso: "JP" }, "nga"), ["Japanese"]); assert.deepEqual(queries({ iso: "JP" }, "aic"), ["Japan"]);
+  // "Somewhere new": what you've already seen doesn't count.
+  const seen = { swipes: [{ uid: "s1", v: 1, a: dutch }] };
+  const fresh = newQuest(seen, { newCountry: true }, 20);
+  assert.ok(!matches(fresh, dutch) && matches(fresh, jp));
+});
+
+test("quests: badges point at the quest that moves them forward", () => {
+  const sw = [{ uid: "a", v: 2, a: work(3, { place: "Japan", year: 1830, kind: "Print", movement: "Ukiyo-e" }), f: ["style|Ukiyo-e"] }];
+  const st = badgeStats({ swipes: sw, badges: {} }, null), none = () => 0;
+  const jq = questForBadge("japonisme", st, {}, none);
+  assert.deepEqual(jq.crit, { movement: "Impressionism" }); assert.match(jq.why, /finish Japonisme/);
+  assert.deepEqual(questForBadge("silk-road", st, {}, none).crit, { iso: "CN" });
+  assert.ok(questForBadge("passport", st, {}, none).crit.newCountry);
+  assert.equal(questForBadge("japonisme", { ...st, sides: { ukiyo: true, impressionist: true } }, {}, none), null, "nothing left to do");
+  const sg = suggestions({ swipes: sw }, null, st, none);
+  assert.ok(sg.badge.length >= 1 && sg.badge[0].goal === "japonisme", "a half-finished pair comes first");
+  assert.ok(sg.fresh.some((x) => x.crit.newCountry));
 });

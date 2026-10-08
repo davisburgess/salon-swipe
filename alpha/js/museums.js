@@ -33,7 +33,7 @@ export function museumStats(state) {
   return { by: out, ranked, home: ranked[0] || null, base };
 }
 
-export const dayActive = (state) => !!(state.museumDay && state.museumDay.left > 0);
+export const dayActive = (state) => !!(state.quest && state.quest.kind === "museum" && state.quest.left > 0);
 
 // A dated, inked passport stamp. Unearned stamps are dashed outlines that say how many works are left.
 const MON = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];

@@ -27,6 +27,7 @@
 <main>
   <section id="view-look" class="view look" aria-label="Look">
     <div class="nudge" id="nudge" hidden><span>A lot has changed since your last backup.</span><button class="btn small" id="nudgeGo">Back up</button></div>
+    <div class="questbar" id="questBar" hidden role="status"><span id="questText"></span><button class="textbtn" id="questEnd" type="button">End</button></div>
     <div class="stage-wrap">
       <div class="edge" id="edge-pass" aria-hidden="true"><span>Pass</span></div>
       <div class="edge" id="edge-keep" aria-hidden="true"><span>Keep</span></div>
@@ -43,7 +44,7 @@
       <button class="ctl love" id="btnLove" type="button" aria-label="Love" title="Love (Up arrow)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 16.6l-5.2 2.8 1-5.9L3.5 9.4l5.9-.8z"/></svg></button>
       <button class="ctl ghost" id="btnInfo" type="button" aria-label="Wall text" title="Wall text (I)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5z"/><path d="M8.5 9h7M8.5 12.5h7M8.5 16h4"/></svg></button>
     </div>
-    <div class="aux"><button class="textbtn" id="btnNewStyle" type="button">New style</button></div>
+    <div class="aux"><button class="textbtn" id="btnNewStyle" type="button">New style</button><span class="dot" aria-hidden="true">·</span><button class="textbtn" id="btnQuests" type="button">Quests</button></div>
   </section>
   <section id="view-taste" class="view" aria-label="Taste" hidden></section>
   <section id="view-kept" class="view" aria-label="Kept" hidden></section>
