@@ -5,11 +5,11 @@
 
 // [iso, continent, ...names and adjectives, lowercase without accents]
 const TABLE = [
-  ["FR", "EU", "strasbourg", "limoges", "saint porchaire", "france", "french", "paris", "parisian", "lyon", "burgundian", "burgundy", "normandy", "provence"],
-  ["IT", "EU", "mantuan", "mantua", "emilian", "gubbio", "parmese", "urbino", "deruta", "vicenza", "lucchese", "lucca", "turin", "pisan", "pisa", "rimini", "bergamo", "italy", "italian", "florence", "florentine", "venice", "venetian", "rome", "roman", "ancient rome", "siena", "sienese", "milan", "milanese",
+  ["FR", "EU", "france", "french", "paris", "parisian", "lyon", "burgundian", "burgundy", "normandy", "provence", "strasbourg", "limoges", "saint porchaire"],
+  ["IT", "EU", "italy", "italian", "florence", "florentine", "venice", "venetian", "rome", "roman", "ancient rome", "siena", "sienese", "milan", "milanese",
     "bologna", "bolognese", "naples", "neapolitan", "genoa", "genoese", "lombard", "lombardy", "umbria", "umbrian", "ferrara", "ferrarese", "tuscany", "tuscan",
-    "marchigian", "etruscan", "papal states", "padua", "paduan", "verona", "veronese", "parma", "sicily", "sicilian", "piedmont"],
-  ["BE", "EU", "mosan", "belgium", "belgian", "flemish", "flanders", "antwerp", "brussels", "bruges", "ghent", "netherlandish", "southern netherlands", "low countries", "brabant", "liege"],
+    "marchigian", "etruscan", "papal states", "padua", "paduan", "verona", "veronese", "parma", "sicily", "sicilian", "piedmont", "mantuan", "mantua", "emilian", "gubbio", "parmese", "urbino", "deruta", "vicenza", "lucchese", "lucca", "turin", "pisan", "pisa", "rimini", "bergamo"],
+  ["BE", "EU", "belgium", "belgian", "flemish", "flanders", "antwerp", "brussels", "bruges", "ghent", "netherlandish", "southern netherlands", "low countries", "brabant", "liege", "mosan"],
   ["NL", "EU", "netherlands", "the netherlands", "kingdom of the netherlands", "dutch", "holland", "amsterdam", "haarlem", "utrecht", "delft", "leiden", "dutch republic", "northern netherlands"],
   ["GB", "EU", "united kingdom", "great britain", "britain", "british", "england", "english", "scotland", "scottish", "wales", "welsh", "london", "staffordshire", "anglo-saxon"],
   ["IE", "EU", "ireland", "irish", "dublin"],
@@ -25,7 +25,7 @@ const TABLE = [
   ["FI", "EU", "finland", "finnish", "helsinki"],
   ["IS", "EU", "iceland", "icelandic"],
   ["PL", "EU", "poland", "polish", "krakow", "warsaw"],
-  ["CZ", "EU", "czechoslovakia", "czech republic", "czechia", "czech", "bohemia", "bohemian", "prague", "moravia", "moravian"],
+  ["CZ", "EU", "czech republic", "czechia", "czech", "bohemia", "bohemian", "prague", "moravia", "moravian", "czechoslovakia"],
   ["SK", "EU", "slovakia", "slovak"],
   ["HU", "EU", "hungary", "hungarian", "budapest"],
   ["RO", "EU", "romania", "romanian"],
@@ -33,7 +33,7 @@ const TABLE = [
   ["RS", "EU", "serbia", "serbian"],
   ["HR", "EU", "croatia", "croatian", "dalmatia", "dalmatian"],
   ["SI", "EU", "slovenia", "slovenian"],
-  ["RU", "EU", "dagestan", "russia", "russian", "russian empire", "soviet union", "ussr", "moscow", "st petersburg", "saint petersburg", "novgorod"],
+  ["RU", "EU", "russia", "russian", "russian empire", "soviet union", "ussr", "moscow", "st petersburg", "saint petersburg", "novgorod", "dagestan"],
   ["UA", "EU", "ukraine", "ukrainian", "kyiv", "kiev", "scythian"],
   ["BY", "EU", "belarus", "belarusian"],
   ["LT", "EU", "lithuania", "lithuanian"],
@@ -44,8 +44,8 @@ const TABLE = [
   ["CY", "EU", "cyprus", "cypriot", "cypriote"],
   ["MT", "EU", "malta", "maltese"],
   ["TR", "AS", "turkey", "turkish", "ottoman", "ottoman empire", "istanbul", "constantinople", "byzantine", "byzantium", "anatolia", "anatolian", "iznik", "hittite", "phrygian", "lydian"],
-  ["EG", "AF", "fayum", "egypt", "egyptian", "ancient egypt", "coptic", "thebes", "memphis", "alexandria", "fatimid", "mamluk"],
-  ["IR", "AS", "parthian", "parthian empire", "iran", "iranian", "persia", "persian", "safavid", "qajar", "isfahan", "tabriz", "shiraz", "achaemenid", "sasanian", "sassanian", "timurid", "seljuk", "kashan"],
+  ["EG", "AF", "egypt", "egyptian", "ancient egypt", "coptic", "thebes", "memphis", "alexandria", "fatimid", "mamluk", "fayum"],
+  ["IR", "AS", "iran", "iranian", "persia", "persian", "safavid", "qajar", "isfahan", "tabriz", "shiraz", "achaemenid", "sasanian", "sassanian", "timurid", "seljuk", "kashan", "parthian", "parthian empire"],
   ["IQ", "AS", "iraq", "iraqi", "mesopotamia", "mesopotamian", "assyria", "assyrian", "babylon", "babylonian", "sumer", "sumerian", "baghdad", "abbasid", "akkadian", "nimrud"],
   ["SY", "AS", "syria", "syrian", "damascus", "palmyra", "palmyrene"],
   ["LB", "AS", "lebanon", "lebanese", "phoenicia", "phoenician"],
@@ -77,7 +77,7 @@ const TABLE = [
   ["ID", "AS", "indonesia", "indonesian", "java", "javanese", "bali", "balinese", "sumatra", "borneo"],
   ["PH", "AS", "philippines", "filipino", "philippine"],
   ["MY", "AS", "malaysia", "malay"],
-  ["US", "NA", "african american", "america", "northwest coast", "tlingit", "haida", "makah", "anishinaabe", "ojibwe", "lakota", "navajo", "hopi", "pueblo", "aleut", "great lakes region", "united states", "united states of america", "usa", "u s", "american", "new york", "boston", "philadelphia", "new england", "california", "native american", "hawaii", "hawaiian", "chicago", "pennsylvania", "virginia"],
+  ["US", "NA", "united states", "united states of america", "usa", "u s", "american", "new york", "boston", "philadelphia", "new england", "california", "native american", "hawaii", "hawaiian", "chicago", "pennsylvania", "virginia", "african american", "america", "northwest coast", "tlingit", "haida", "makah", "anishinaabe", "ojibwe", "lakota", "navajo", "hopi", "pueblo", "aleut", "great lakes region"],
   ["CA", "NA", "canada", "canadian", "quebec", "inuit"],
   ["MX", "NA", "mexico", "mexican", "aztec", "maya", "mayan", "olmec", "west mexico", "teotihuacan", "zapotec", "mixtec", "veracruz", "colima", "jalisco", "nayarit", "new spain", "toltec", "huastec"],
   ["GT", "NA", "guatemala", "guatemalan"],
@@ -126,10 +126,15 @@ const CONTINENT_ONLY = { "africa": "AF", "west africa": "AF", "central africa": 
   "europe": "EU", "balkans": "EU", "arctic": "NA", "oceania": "OC", "polynesia": "OC", "polynesian": "OC", "melanesia": "OC", "melanesian": "OC", "micronesia": "OC",
   "south america": "SA", "south american": "SA", "latin america": "SA", "latin american": "SA", "african": "AF", "north american": "NA", "central america": "NA", "central american": "NA", "asian": "AS", "european": "EU", "andes": "SA", "andean": "SA", "mesoamerica": "NA", "mesoamerican": "NA", "north america": "NA", "caribbean": "NA" };
 
+// Display names and adjectives where the first entries in the table aren't the natural ones.
+const NAME = { US: "United States", GB: "United Kingdom", CZ: "Czechia", CD: "DR Congo", CI: "Côte d'Ivoire", KR: "South Korea" };
+const ADJ = { NL: "Dutch", GB: "British", CZ: "Czech", SA: "Saudi", GE: "Georgian", BD: "Bangladeshi", MM: "Burmese", US: "American", NZ: "New Zealand",
+  PG: "Papua New Guinean", CD: "Congolese", CI: "Ivorian", BF: "Burkinabe", SL: "Sierra Leonean" };
 export const COUNTRY = {};   // iso -> { continent, name }
 const LEX = new Map();       // phrase -> { iso, continent }
 for (const [iso, cont, ...names] of TABLE) {
-  COUNTRY[iso] = { continent: cont, name: names[0].replace(/\b\w/g, (c) => c.toUpperCase()) };
+  const cap = (x) => x.replace(/\b\w/g, (c) => c.toUpperCase());
+  COUNTRY[iso] = { continent: cont, name: NAME[iso] || cap(names[0]), adj: ADJ[iso] || cap(names[1] || names[0]), terms: names.slice(2, 12) };
   for (const n of names) if (!LEX.has(n)) LEX.set(n, { iso, continent: cont });
 }
 for (const [n, c] of Object.entries(CONTINENT_ONLY)) if (!LEX.has(n)) LEX.set(n, { iso: null, continent: c });

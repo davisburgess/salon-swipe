@@ -203,7 +203,7 @@ const store = (p) => pp(p, () => JSON.parse(localStorage.getItem("pp-alpha-v1"))
   });
   await check("taste.badges", async () => {
     const total = await p.locator(".cabinet .pin").count(), n = await p.locator(".cabinet .pin.earned").count();
-    expect(total === 47, `${total} pins in the cabinet`); expect(n >= 1, "no pins shown as earned");
+    expect(total === 48, `${total} pins in the cabinet`); expect(n >= 1, "no pins shown as earned");
     expect(Object.keys((await store(p)).badges).some((k) => k === "pin:first-love:1"), "First Love not recorded");
     await p.locator(".cabinet .pin.earned").first().click(); await p.waitForSelector("#modal:not([hidden]) .walllabel");
     expect((await p.textContent("#modalBody .walllabel")).length > 10, "pin detail has no wall label");
@@ -372,6 +372,41 @@ await check("museums.day", async () => {
   await p.screenshot({ path: `${OUT}/museumday-done.png` }); await p.click("#modalOk");
   const s = await store(p); expect(s.museumDays && s.museumDays.aic && !s.museumDay, "Museum Day not recorded");
   expect(Object.keys(s.badges).includes("pin:day-tripper:1"), "Day Tripper not earned");
+  await ctx.close();
+});
+
+await check("atlas.explore", async () => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
+  await mockWorld(ctx);
+  const p = await ctx.newPage(); await p.goto(APP);
+  await pp(p, () => {
+    const places = ["France", "Japan", "Netherlands", "Italy", "Mexico", "Egypt"];
+    const swipes = Array.from({ length: 48 }, (_, i) => ({ uid: `aic:${6000 + i}`, v: i % 6 === 1 || i % 6 === 3 ? 2 : i % 6 === 4 ? -1 : i % 2 ? 1 : -1, t: Date.now() - (48 - i) * 60000,
+      f: [`style|S${i % 7}`], a: { uid: `aic:${6000 + i}`, src: "aic", title: `W${i}`, place: places[i % 6], year: [1880, 1830, 1660, 1505, 1930, -1350][i % 6] } }));
+    localStorage.clear(); localStorage.setItem("pp-alpha-v1", JSON.stringify({ onboarded: true, swipes, badges: { "pin:_init": 1 }, levelScale: 3 }));
+  });
+  await p.reload(); await p.click("#tab-taste"); await p.click('.jump a[data-jump="t-atlas"]');
+  await p.waitForSelector("#atlasMap .worldmap", { timeout: 8000 }); await p.waitForTimeout(500);
+  const seen = await p.locator("#atlasMap path.seen").count(), fog = await p.locator("#atlasMap path.fog").count();
+  expect(seen === 6 && fog > 150, `map: ${seen} seen, ${fog} under fog`);
+  expect(/Japan/.test(await p.textContent("#t-atlas .home")), "Japan isn't a strongest pull");
+  expect(await p.locator("#atlasMap .route").count() === 1, "no Grand Tour route");
+  expect(await p.locator(".timeline .love").count() === 16, "timeline Loves");
+  const widths = await pp(p, () => [document.documentElement.scrollWidth, document.querySelector("#view-taste").scrollWidth, innerWidth]);
+  expect(widths[0] <= widths[2] && widths[1] <= widths[2], `page wider than the screen: ${widths}`);
+  await p.screenshot({ path: `${OUT}/atlas.png` });
+  await p.locator('#atlasMap path[data-iso="JP"]').dispatchEvent("click"); await p.waitForTimeout(300);
+  expect(/Japan/.test(await p.textContent("#atlasPanel")) && /8 seen/.test(await p.textContent("#atlasPanel")), `panel: ${await p.textContent("#atlasPanel")}`);
+  await p.locator('#atlasMap path[data-iso="KZ"]').dispatchEvent("click"); await p.waitForTimeout(200);
+  expect(/Under fog/.test(await p.textContent("#atlasPanel")), "fog country panel");
+  await p.click('#t-atlas .chip[data-iso="JP"]'); await p.waitForTimeout(200); await p.click("#exGo");
+  await p.waitForSelector("#view-look:not([hidden])"); await waitTop(p);
+  expect(/Exploring Japan: 12 to go/.test(await p.textContent(".card.top .cue")), `cue: ${await p.textContent(".card.top .cue")}`);
+  for (let i = 0; i < 12; i++) { await waitTop(p); const pl = await pp(p, () => __pp.deck.queue[0].place); expect(/Japan/.test(pl || ""), `card ${i} from ${pl}`); await press(p, i % 3 ? "ArrowRight" : "ArrowLeft"); }
+  await p.waitForSelector("#modal:not([hidden])", { timeout: 4000 }); expect(/Explore complete/.test(await p.textContent("#modalBody")), "no completion");
+  await p.click("#modalOk");
+  const s = await store(p); expect(s.explored && s.explored.JP && !s.explore, "Explore not recorded");
+  expect(Object.keys(s.badges).includes("pin:expedition:1"), "Expedition not earned");
   await ctx.close();
 });
 

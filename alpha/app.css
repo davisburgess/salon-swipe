@@ -17,6 +17,7 @@
   --pass: #b0402f;
   --gilt: #9a7428;
   --focus: #2f5fd0;
+  --land: #e6e0d2; --fog: #dad6cd; --fogline: rgba(22,24,27,.09);
   --emb-fill: #efece5; --emb-hi: rgba(255,255,255,.95); --emb-lo: rgba(22,24,27,.24);
   --serif: "Newsreader", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
   --sans: "Schibsted Grotesk", "Helvetica Neue", Arial, system-ui, sans-serif;
@@ -36,6 +37,7 @@
     --pass: #e2806f;
     --gilt: #d3ad62;
     --focus: #8fb0ff;
+    --land: #3b3c38; --fog: #2a2d31; --fogline: rgba(236,234,228,.07);
     --emb-fill: #2a2d31; --emb-hi: rgba(255,255,255,.10); --emb-lo: rgba(0,0,0,.55);
     --shadow-art: 0 1px 1px rgba(0,0,0,.5), 0 10px 22px -8px rgba(0,0,0,.65), 0 34px 60px -26px rgba(0,0,0,.85);
     color-scheme: dark;
@@ -46,6 +48,7 @@
   --paper: #1d2024; --ink: #eceae4; --ink-2: #a7abb1; --line: rgba(236,234,228,.16); --chip: rgba(255,255,255,.08);
   --keep: #5fbf8e; --pass: #e2806f; --gilt: #d3ad62; --focus: #8fb0ff; color-scheme: dark;
   --emb-fill: #2a2d31; --emb-hi: rgba(255,255,255,.10); --emb-lo: rgba(0,0,0,.55);
+  --land: #3b3c38; --fog: #2a2d31; --fogline: rgba(236,234,228,.07);
 }
 
 * { box-sizing: border-box; }
@@ -53,7 +56,7 @@ html, body { height: 100%; overscroll-behavior-x: none; }   /* sideways swipes s
 body {
   margin: 0; background: var(--wall); color: var(--ink);
   font: 400 16px/1.5 var(--sans); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
-  display: grid; grid-template-rows: auto 1fr auto; overflow: hidden;
+  display: grid; grid-template-rows: auto 1fr auto; grid-template-columns: minmax(0, 1fr); overflow: hidden;
   padding-top: env(safe-area-inset-top, 0px);
   transition: background-color .7s ease;
   -webkit-tap-highlight-color: transparent;
@@ -80,8 +83,8 @@ a { color: inherit; text-underline-offset: 3px; }
 .ring-bg { stroke: var(--line); }
 .ring { stroke: var(--gilt); stroke-linecap: round; transition: stroke-dasharray .6s ease; }
 
-main { min-height: 0; position: relative; }
-.view { height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+main { min-height: 0; min-width: 0; position: relative; }
+.view { height: 100%; min-width: 0; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; }   /* never wider than the screen; wide pieces scroll inside themselves */
 .view.look { display: flex; flex-direction: column; overflow: hidden; padding: 0 16px; }
 
 /* ---------- the wall ---------- */
@@ -180,8 +183,9 @@ textarea { width: 100%; min-height: 84px; font-size: 12.5px; }
 .note.small h3 { font-size: 17px; } .note.small p { font-size: 15.5px; }
 .past summary { cursor: pointer; color: var(--ink-2); font-size: 14px; margin: 8px 0; }
 /* ---------- Taste: jump bar, portrait, badge cabinet ---------- */
-.jump { position: sticky; top: 0; z-index: 5; display: flex; gap: 4px; justify-content: center; padding: 8px 16px; background: var(--wall); border-bottom: 1px solid var(--line); }
-.jump a { flex: 0 1 8rem; text-align: center; padding: 7px 10px; border-radius: 999px; font: 500 13.5px/1 var(--sans); color: var(--ink-2); text-decoration: none; }
+.jump { position: sticky; top: 0; z-index: 5; display: flex; gap: 2px; justify-content: center; padding: 8px 10px; background: var(--wall); border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.jump::-webkit-scrollbar { display: none; }
+.jump a { flex: 0 1 7rem; min-width: 0; text-align: center; padding: 7px 8px; border-radius: 999px; font: 500 13px/1 var(--sans); color: var(--ink-2); text-decoration: none; white-space: nowrap; }
 .jump a[aria-current] { background: var(--paper); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.14); }
 .tsec { padding-top: 6px; scroll-margin-top: 52px; }
 #view-taste .page { padding-bottom: 30vh; }   /* room for the last sections to reach the top */
@@ -248,6 +252,27 @@ textarea { width: 100%; min-height: 84px; font-size: 12.5px; }
 .mrow.few .n { color: var(--ink-2); }
 .museumday { margin-top: 16px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
 .daybtns { display: flex; flex-wrap: wrap; gap: 6px; }
+.mapbox { margin: 6px -8px 4px; background: var(--paper); border-radius: 14px; padding: 8px; min-height: 120px; }
+.worldmap { width: 100%; height: auto; display: block; }
+.worldmap path { stroke: var(--paper); stroke-width: .6; cursor: pointer; }
+.worldmap path.fog { fill: url(#pp-fog); }
+.worldmap path.sel { stroke: var(--ink); stroke-width: 1.8; }
+.worldmap .fogbg { fill: var(--fog); } .worldmap .fogline { stroke: var(--fogline); }
+.worldmap .route { stroke: var(--ink); stroke-width: 1.6; stroke-dasharray: 5 5; stroke-linejoin: round; pointer-events: none; }
+.worldmap .stop { fill: var(--ink); stroke: var(--paper); stroke-width: 1.2; pointer-events: none; }
+@media (prefers-reduced-motion: no-preference) { .worldmap .route { animation: march 1.6s linear infinite; } @keyframes march { to { stroke-dashoffset: -20; } } }
+.ramp { height: 6px; border-radius: 3px; margin: 6px 0 2px; background: linear-gradient(90deg, #6f8296, var(--land), #c48a2a); }
+.legend { display: flex; justify-content: space-between; }
+.atlaspanel { margin: 12px 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
+.atlaspanel h3 { font: 500 22px/1.2 var(--serif); margin: 0 0 4px; }
+.atlaspanel .btn { margin-top: 6px; }
+.chip small { color: var(--ink-2); margin-left: 3px; }
+.tlbox { overflow-x: auto; }
+.timeline { width: 100%; min-width: 520px; height: auto; display: block; }
+.timeline .axis { stroke: var(--line); stroke-width: 1.5; } .timeline .tick { stroke: var(--ink-2); }
+.timeline .tl { fill: var(--ink-2); font: 11px var(--sans); }
+.timeline .pass { stroke: var(--ink-2); stroke-opacity: .4; stroke-width: 1.4; }
+.timeline .love { fill: #c48a2a; stroke: var(--paper); stroke-width: 1; }
 .ladder { list-style: none; padding: 0; margin: 4px 0; display: grid; gap: 4px; font-size: 13.5px; }
 .ladder li { display: grid; grid-template-columns: 4.5rem 1fr auto; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); color: var(--ink-2); }
 .ladder li b { color: var(--ink); font-weight: 600; }

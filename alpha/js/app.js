@@ -7,6 +7,8 @@ import { TasteModel, features } from "./model.js";
 import { Deck, MAX_DEFERS } from "./deck.js";
 import { load, save, saveFailed, record, STORE_KEY, mergeSwipes, backupPayload, parseBackup, encodeCode, fromSalonSwipe, compact } from "./store.js";
 import { stats, levelFor, LEVELS, LEVEL_SCALE, profileFacts, templateNote } from "./rewards.js";
+import { loadWorld, countryStats, grandTour, mapSVG, timelineSVG, EXPLORE_LENGTH } from "./atlas.js";
+import { geoOf, COUNTRY } from "./geo.js";
 import { museumStats, stampSVG, dayActive, DAY_LENGTH, STAMP_AT } from "./museums.js";
 import { BADGES, FAMILIES, TIERS, APP_RUNGS, badgeStats, award, unsealedAt, pinState, closest, eyeTitle, pinSVG, ensureDefs, tierName, byId as badgeById } from "./badges.js";
 import * as api from "./sync.js";
@@ -87,6 +89,7 @@ function cueFor(a) {
   if (a._look) return a._look >= MAX_DEFERS
     ? { k: "look", text: "Last look. Choosing Later again marks it undecided." }
     : { k: "look", text: "Second look. The wall text is open to help you decide." };
+  if (state.explore && state.explore.left > 0) { const g = geoOf(a); if (g && g.iso === state.explore.iso) return { k: "seed", text: `Exploring ${COUNTRY[g.iso].name}: ${state.explore.left} to go` }; }
   if (dayActive(state) && a.src === state.museumDay.src) return { k: "seed", text: `Museum Day at the ${MUSEUMS[a.src].name}: ${state.museumDay.left} to go` };
   if (a._why === "newstyle" && a._seed) return { k: "seed", text: `New style: ${a._seed.label}, ${a._seed.years}`, sub: a._seed.why };
   if (a._seed) { const i = OPENING.findIndex((o) => o.id === a._seed.id) + 1;
@@ -161,6 +164,10 @@ function renderStage() {
     deck.refill().then(() => {
       deck.topUp();
       if (deck.queue.length) return renderStage();
+      if (state.explore && state.explore.left > 0) {   // ran out of works from that country: back to everything
+        const name = COUNTRY[state.explore.iso].name; state.explore = null; persist({ meta: true });
+        toast(`That's all we can find from ${name} for now. Back to every museum.`); return renderStage();
+      }
       stage.innerHTML = `<div class="empty"><p>The museums aren't answering right now. Check your connection, then try again.</p><button class="btn" id="retry">Try again</button></div>`;
       $("#retry").onclick = renderStage;
     });
@@ -247,6 +254,8 @@ function decide(v, vel) {
   if (a._look) rec.look = a._look;
   const day = state.museumDay;
   if (day && day.left > 0 && a.src === day.src) { day.left--; if (!day.left) finishDay(day.src); }
+  const ex = state.explore, g = ex && ex.left > 0 ? geoOf(a) : null;
+  if (g && g.iso === ex.iso) { ex.left--; if (!ex.left) finishExplore(ex.iso); }
   markSeedSeen(a);
   model.learn(rec.f, v);
   deck.markSeen(a); deck.queue.shift(); deck.releaseLater(); deck.topUp();
@@ -684,14 +693,15 @@ function renderTaste() {
     ${whyHTML}
     ${und.length ? `<section class="dim"><h3>Left you undecided</h3><ul class="plain">${und.map((x) => `<li><cite>${esc(x.a.title)}</cite>, ${esc(x.a.artist || "unknown maker")}</li>`).join("")}</ul></section>` : ""}</section>`;
 
-  scroller.innerHTML = `<nav class="jump" aria-label="Taste sections">${[["t-portrait", "Portrait"], ["t-badges", "Badges"], ["t-museums", "Museums"], ["t-leanings", "Leanings"]].map(([id, l], i) => `<a href="#${id}" data-jump="${id}" ${i === 0 ? 'aria-current="true"' : ""}>${l}</a>`).join("")}</nav>
-    <div class="page">${portrait}${badges}${museumsHTML()}${leanings}</div>`;
+  scroller.innerHTML = `<nav class="jump" aria-label="Taste sections">${[["t-portrait", "Portrait"], ["t-badges", "Badges"], ["t-museums", "Museums"], ["t-atlas", "Atlas"], ["t-leanings", "Leanings"]].map(([id, l], i) => `<a href="#${id}" data-jump="${id}" ${i === 0 ? 'aria-current="true"' : ""}>${l}</a>`).join("")}</nav>
+    <div class="page">${portrait}${badges}${museumsHTML()}${atlasHTML()}${leanings}</div>`;
   scroller.scrollTop = keepScroll;
 
   $$("[data-jump]", scroller).forEach((a) => (a.onclick = (e) => { e.preventDefault(); jumpTo(a.dataset.jump); }));
   $$("[data-pin]", scroller).forEach((el) => (el.onclick = () => openPin(el.dataset.pin)));
   $$("[data-day]", scroller).forEach((b) => (b.onclick = () => startDay(b.dataset.day)));
   const endB = $("#dayEnd", scroller); if (endB) endB.onclick = () => endDay();
+  fillAtlas();
   const ov = $("#seeOnView", scroller); if (ov) ov.onclick = () => { keptFilter = "onview"; show("kept"); };
   scroller.onscroll = spyTaste; spyTaste();
   $("#toneSel").onchange = (e) => { state.settings.tone = e.target.value; persist({ meta: true }); };
@@ -716,7 +726,7 @@ function spyTaste() {
   const sc = $("#view-taste"), nav = $(".jump", sc); if (!nav || Date.now() < spyLock) return;
   const y = sc.scrollTop + nav.offsetHeight + 40;
   let cur = "t-portrait";
-  for (const id of ["t-portrait", "t-badges", "t-museums", "t-leanings"]) { const el = document.getElementById(id); if (el && el.offsetTop <= y) cur = id; }
+  for (const id of ["t-portrait", "t-badges", "t-museums", "t-atlas", "t-leanings"]) { const el = document.getElementById(id); if (el && el.offsetTop <= y) cur = id; }
   if (sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 4) cur = "t-leanings";
   $$("[data-jump]", nav).forEach((a) => (a.dataset.jump === cur ? a.setAttribute("aria-current", "true") : a.removeAttribute("aria-current")));
 }
@@ -768,6 +778,7 @@ function museumsHTML() {
     </div></section>`;
 }
 function startDay(src) {
+  state.explore = null;
   if (!isAvailable(src)) { toast(`The ${MUSEUMS[src].name} isn't answering right now. Try another museum.`); return; }
   state.museumDay = { src, left: DAY_LENGTH, t: Date.now() }; persist({ meta: true });
   deck.focusMuseum(src); show("look");
@@ -784,6 +795,72 @@ function finishDay(src) {
     openModal(`<p class="kicker">Museum Day complete</p><h2>${esc(MUSEUMS[src].name)}</h2>
       <div class="pinhead">${stampSVG(src, museumStats(state).by[src])}</div>
       <p>Twenty works, one museum. Its passport stamp now has a gilt border. Back to every museum from here.</p>
+      <button class="btn primary" id="modalOk">Keep looking</button>`);
+    $("#modalOk").onclick = closeModal;
+  }, 700);
+}
+
+/* ---------- Atlas ---------- */
+let atlasSel = null;
+function atlasHTML() {
+  const cs = countryStats(state), ex = state.explore && state.explore.left > 0 ? state.explore : null;
+  const names = (l) => l.map((c) => COUNTRY[c.iso] ? COUNTRY[c.iso].name : c.iso);
+  const seen = [...cs.list].sort((a, b) => b.decided - a.decided);
+  return `<section id="t-atlas" class="tsec"><h2 class="sech">Atlas</h2>
+    ${cs.pulls.length ? `<p class="kicker">Strongest pull</p><h3 class="home">${esc(names(cs.pulls.slice(0, 3)).join(", "))}</h3>` : `<p class="small muted">Your strongest pulls appear after a few works from the same country.</p>`}
+    <div class="mapbox" id="atlasMap"><p class="small muted">Unrolling the map…</p></div>
+    <div class="ramp" aria-hidden="true"></div><div class="legend small muted"><span>Usually pass</span><span>Strong pull</span></div>
+    <p class="small"><b>${cs.list.length}</b> ${cs.list.length === 1 ? "country" : "countries"} explored, across ${cs.continents.size} of 6 continents. Everything else is under fog. The line traces your last ten Loves.</p>
+    ${ex ? `<div class="museumday"><p class="small">Exploring <b>${esc(COUNTRY[ex.iso].name)}</b>: ${ex.left} of ${EXPLORE_LENGTH} to go.</p><button class="btn small" id="exEnd" type="button">End the Explore</button></div>` : ""}
+    <div class="atlaspanel" id="atlasPanel" aria-live="polite"><p class="small muted">Tap a country for its numbers, or to explore it.</p></div>
+    ${seen.length ? `<p class="kicker">Countries you've seen</p><div class="daybtns">${seen.slice(0, 18).map((c) => `<button class="chip" type="button" data-iso="${c.iso}">${esc(COUNTRY[c.iso] ? COUNTRY[c.iso].name : c.iso)} <small>${c.decided}</small></button>`).join("")}</div>` : ""}
+    <p class="kicker">Where and when</p><div class="tlbox">${timelineSVG(state)}</div>
+    <p class="small muted">Gold dots are Loves, grey ticks are passes. Older centuries are squeezed to fit.</p>
+    <p class="small muted">Places are mapped to today's countries, which is a lens, not history: a Mughal miniature lands in India, a Byzantine icon in Turkey.</p>
+  </section>`;
+}
+async function fillAtlas() {
+  const box = $("#atlasMap"); if (!box) return;
+  $$("#t-atlas [data-iso]").forEach((b) => (b.onclick = () => selectCountry(b.dataset.iso)));
+  const exB = $("#exEnd"); if (exB) exB.onclick = () => { state.explore = null; persist({ meta: true }); toast("Explore ended. Back to every museum."); renderTaste(); };
+  try {
+    const world = await loadWorld(); if (!document.body.contains(box)) return;
+    box.innerHTML = mapSVG(world, countryStats(state), { selected: atlasSel, tour: grandTour(state) });
+    $(".worldmap", box).onclick = (e) => { const p = e.target.closest("[data-iso]"); if (p) selectCountry(p.dataset.iso); };
+    if (atlasSel) selectCountry(atlasSel, true);
+  } catch (e) { box.innerHTML = `<p class="small muted">The map couldn't load. Your countries are listed below.</p>`; }
+}
+function selectCountry(iso, quiet) {
+  atlasSel = iso;
+  $$("#atlasMap path.sel").forEach((p) => p.classList.remove("sel"));
+  const path = $(`#atlasMap path[data-iso="${iso}"]`); if (path) { path.classList.add("sel"); path.parentNode.appendChild(path); }
+  const c = countryStats(state).by[iso], meta = COUNTRY[iso];
+  const name = meta ? meta.name : ((path && path.querySelector("title")) ? path.querySelector("title").textContent.split(",")[0].split(":")[0] : iso);
+  const busy = (state.explore && state.explore.left > 0) || dayActive(state);
+  const btn = meta ? `<button class="btn small" id="exGo" type="button" ${busy ? "disabled" : ""}>Explore ${esc(name)}</button>${busy ? `<p class="small muted">Finish or end the current Explore or Museum Day first.</p>` : ""}` : `<p class="small muted">We can't reliably find art from here yet.</p>`;
+  const places = c ? [...c.places.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([p]) => p) : [];
+  $("#atlasPanel").innerHTML = c
+    ? `<h3>${esc(name)}</h3><p class="small">${c.decided} seen · ${c.keeps} kept (${Math.round(c.keepRate * 100)}%) · ${c.loves} loved${c.topStyle ? ` · mostly ${esc(c.topStyle)}` : ""}</p>
+       ${places.length ? `<p class="small muted">Recorded by museums as: ${places.map(esc).join(", ")}</p>` : ""}${btn}`
+    : `<h3>${esc(name)}</h3><p class="small">Under fog: nothing from here yet.</p>${btn}`;
+  const go = $("#exGo"); if (go) go.onclick = () => startExplore(iso);
+  if (!quiet) $("#atlasPanel").scrollIntoView({ block: "nearest", behavior: reduceMotion ? "auto" : "smooth" });
+}
+async function startExplore(iso) {
+  const name = COUNTRY[iso].name;
+  state.museumDay = null; state.explore = { iso, left: EXPLORE_LENGTH, t: Date.now() }; persist({ meta: true });
+  deck.focusPlace(iso); show("look");
+  stage.innerHTML = `<div class="empty"><p>Looking for art from ${esc(name)}…</p></div>`;
+  await deck.refill(); deck.topUp();
+  if (!deck.queue.length) { state.explore = null; persist({ meta: true }); toast(`We couldn't find works from ${name} just now. Try another country.`); }
+  else toast(`Exploring ${name}. ${EXPLORE_LENGTH} works.`);
+  renderStage();
+}
+function finishExplore(iso) {
+  state.explored = state.explored || {}; state.explored[iso] = Date.now(); state.explore = null;
+  setTimeout(() => {
+    openModal(`<p class="kicker">Explore complete</p><h2>${esc(COUNTRY[iso].name)}</h2>
+      <p>Twelve works from ${esc(COUNTRY[iso].name)}. The Atlas has updated its colors. Back to every museum from here.</p>
       <button class="btn primary" id="modalOk">Keep looking</button>`);
     $("#modalOk").onclick = closeModal;
   }, 700);
@@ -913,6 +990,7 @@ function absorb(d) {
   if (Number.isFinite(d.seedIdx)) state.seedIdx = Math.max(state.seedIdx, d.seedIdx);
   if (Array.isArray(d.notes)) { const ids = new Set(state.notes.map((n) => n.id)); state.notes = state.notes.concat(d.notes.filter((n) => n && !ids.has(n.id))); }
   if (d.badges) state.badges = { ...d.badges, ...state.badges };
+  if (d.explored) state.explored = { ...d.explored, ...(state.explored || {}) };
   if (d.museumDays) state.museumDays = { ...d.museumDays, ...(state.museumDays || {}) };
   state.sync.dirty.push(...(d.swipes || []).map((s) => s.uid));
   model.fit(state.swipes); deck.rebuildKeys();

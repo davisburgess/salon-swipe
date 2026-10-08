@@ -48,7 +48,7 @@ export function badgeStats(state, model) {
   const st = { decided: 0, loves: 0, keeps: 0, passes: 0, why: 0, styles: new Set(), cents: new Set(), countries: new Set(), keptContinents: new Set(),
     lovedCountries: new Set(), srcAny: {}, lovesBySrc: {}, onViewKeeps: 0, secondLook: 0, deepTime: false, wetPaint: false, bookends: false,
     sides: {}, runMax: 0, perDay: {}, afterHours: false, hotTake: false, lovesByArtist: {}, changeOfHeart: false,
-    days: Object.keys(state.museumDays || {}).length,
+    days: Object.keys(state.museumDays || {}).length, explores: Object.keys(state.explored || {}).length,
     undo: (state.counters && state.counters.undo) || 0, accuracy: model ? model.accuracy : null, eye: {}, total: sw.length };
   const passesByStyle = {}, keepsWindow = [];
   const oldest = new Date().getFullYear() - 2000;
@@ -158,6 +158,8 @@ export const BADGES = [
   { id: "all-six", fam: "atlas", name: "All Six", em: "continents", how: "Keep a work from every inhabited continent.", progress: (s) => ({ have: s.keptContinents.size, need: 6 }), test: (s) => s.keptContinents.size >= 6, fact: "Antarctica's collection is mostly ice. You're excused." },
   { id: "silk-road", fam: "atlas", name: "Silk Road", em: "silk", how: "Love works from China, Iran and Italy.", progress: (s) => ({ have: ["CN", "IR", "IT"].filter((c) => s.lovedCountries.has(c)).length, need: 3 }),
     test: (s) => ["CN", "IR", "IT"].every((c) => s.lovedCountries.has(c)), fact: "Named in 1877 by the geographer Ferdinand von Richthofen. Cobalt from Persia helped make China's blue-and-white porcelain." },
+
+  { id: "expedition", fam: "atlas", name: "Expedition", em: "compass", how: "Finish an Explore: 12 works from one country, chosen on the Atlas.", test: (s) => s.explores >= 1, fact: "Mapmakers once filled unknown regions with sea monsters. You filled yours with paintings." },
 
   { id: "museum-hopper", fam: "museums", name: "Museum Hopper", em: "ticket", how: "Judge works from different museums.", unit: "museums", tiers: [3, 5, 7], value: (s) => s.sources, fact: "Seven admissions, no coat check." },
   { id: "home-museum", fam: "museums", name: "Home Museum", em: "facade", how: "Love 15 works from one museum.", progress: (s) => ({ have: s.topSrc ? s.topSrc[1] : 0, need: 15 }), test: (s) => !!s.topSrc && s.topSrc[1] >= 15, fact: "Every serious looker has a home museum. Yours is the one you love most." },

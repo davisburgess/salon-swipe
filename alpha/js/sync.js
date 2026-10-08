@@ -50,7 +50,7 @@ export async function syncNow(state) {
     const chunk = outgoing.slice(i * 500, (i + 1) * 500);
     const res = await call("/v1/sync", key, {
       cursor, swipes: chunk, removed: i === 0 ? (state.sync.removed || []) : [],
-      meta: { later: state.later, settings: state.settings, seedIdx: state.seedIdx, notes: state.notes.slice(-30), badges: state.badges, museumDays: state.museumDays || {}, t: state.sync.metaT || 0 },
+      meta: { later: state.later, settings: state.settings, seedIdx: state.seedIdx, notes: state.notes.slice(-30), badges: state.badges, museumDays: state.museumDays || {}, explored: state.explored || {}, t: state.sync.metaT || 0 },
     });
     pulled += mergeSwipes(state, res.swipes || []);
     cursor = res.cursor ?? cursor;
@@ -61,6 +61,7 @@ export async function syncNow(state) {
       if (Number.isFinite(m.seedIdx)) state.seedIdx = Math.max(state.seedIdx, m.seedIdx);
       if (Array.isArray(m.notes)) { const ids = new Set(state.notes.map((n) => n.id)); state.notes = state.notes.concat(m.notes.filter((n) => !ids.has(n.id))).sort((a, b) => a.t - b.t); }
       if (m.badges) state.badges = { ...m.badges, ...state.badges };
+      if (m.explored) state.explored = { ...m.explored, ...(state.explored || {}) };
       if (m.museumDays) state.museumDays = { ...m.museumDays, ...(state.museumDays || {}) };
       state.sync.metaT = m.t;
     }

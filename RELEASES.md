@@ -6,6 +6,25 @@ How every release ships:
 3. **GitHub re-runs everything on each push** (Actions, "Checks"), and probes the real museum APIs every morning, which the build workspace can't reach. A commit message containing `[live]` runs that probe immediately; every release commit uses it.
 4. **At most one small usability improvement per release,** listed here so you can veto it. Never a change to gestures, saved data, or anything you'd have to relearn without asking first.
 
+## 0.5.0-alpha (Oct 7, 2026)
+
+**Change requested by you: the Atlas.** Last of the three Taste releases.
+- **A world map with fog of war.** Countries you've judged art from are tinted by how you lean: gold for a pull, slate for a pass, stronger the more works back it up. Everything else is hatched fog. Equal-area projection (Europe isn't inflated), 176 countries from Natural Earth's public-domain outlines, 44 KB, cached for offline.
+- **Strongest pull** names your top three countries; a count shows how many countries and continents you've covered.
+- **Your Grand Tour:** a dashed line through the countries of your last ten Loves.
+- **Tap any country** for its numbers (seen, kept, loved, favorite movement) and the place names museums used for it ("Venetian", "Mughal India"). Countries under fog say so. A list of the countries you've seen does the same for anyone who'd rather not tap a map.
+- **Explore:** from any country's panel, your next 12 works come from that country. Every museum is asked, and only works that really come from there are shown. If a country runs dry, it says so and goes back to everything. Finishing earns a new pin, **Expedition** (48 pins).
+- **Where and when:** a 5,000-year strip under the map with your Loves and passes. Older centuries are squeezed to fit; the strip scrolls sideways on small screens.
+- The jump bar is now Portrait, Badges, Museums, Atlas, Leanings.
+- Places are mapped to today's countries, and the Atlas says so: a lens, not history.
+
+**Review found and fixed**
+- Five tabs in the jump bar, and the timeline, made the whole Taste page wider than a phone screen, so it slid sideways. The page layout grew to fit its widest piece. The layout is now pinned to the screen width, the tabs are tighter, and wide pieces scroll inside themselves. A new browser check fails if any page is wider than the screen.
+- A few countries' names came out wrong ("United States Of America", "Great Britain", "The Netherlands" as an adjective). Names and adjectives are now set explicitly.
+
+**Checks:** 48 unit and backend tests (new: Atlas leanings, route, explore terms, map), 43 of 43 browser checks (new: atlas.explore, which walks a full Explore of Japan and checks the page fits the screen).
+**On your phone:** Taste, then Atlas. Tap a gold country, then Explore it. Check that nothing slides sideways.
+
 ## 0.4.0-alpha (Oct 7, 2026)
 
 **Change requested by you: Museums.** Second of three Taste releases (the Atlas map is next).

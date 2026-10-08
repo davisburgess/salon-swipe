@@ -9,6 +9,8 @@
 import { OPENING, BROWSE_TERMS } from "./curation.js";
 import { features } from "./model.js";
 import { workKey, norm, shuffle } from "./util.js";
+import { geoOf } from "./geo.js";
+import { exploreTerm } from "./atlas.js";
 
 export const ARTIST_GAP = 6, LATER_MIN = 15, LATER_MAX = 25, MAX_DEFERS = 3, POOL_TARGET = 24;
 const SRC_WEIGHT = { aic: 0.2, nga: 0.2, met: 0.12, cma: 0.12, wd: 0.14, smk: 0.12, vam: 0.1 };
@@ -94,12 +96,27 @@ export class Deck {
     if (this.loading) return this.loading;
     this.loading = (async () => {
       this.seedCursor = Math.max(this.seedCursor, this.state.seedIdx || 0);
-      const onDay = this.state.museumDay && this.state.museumDay.left > 0;   // the opening hang waits during a Museum Day
+      const onDay = this.focused();   // the opening hang waits during a Museum Day or an Explore
       if (!onDay && this.seedCursor < OPENING.length) {
         const seeds = OPENING.slice(this.seedCursor, this.seedCursor + 3);
         this.seedCursor += seeds.length;
         const got = await Promise.all(seeds.map((s) => this.fetchSeed(s)));
         this.seedBuf.push(...this.dedupe(got.filter(Boolean)));
+      }
+      const ex = this.state.explore && this.state.explore.left > 0 ? this.state.explore : null;
+      if (ex) {
+        // Explore a country: ask every museum for it, keep only works that really come from there.
+        let found = 0;
+        for (const src of shuffle(this.sources(), this.rand)) {
+          if (this.pool.length >= 12) break;
+          const q = exploreTerm(ex.iso, src); if (!q) continue;
+          try {
+            const got = this.dedupe((await this.search(src, q, { limit: 24 })).filter((a) => { const g = geoOf(a); return g && g.iso === ex.iso; }));
+            this.pool.push(...got); found += got.length;
+          } catch (e) { /* next museum */ }
+        }
+        this.exploreFound = found;
+        return;
       }
       let tries = 0;
       while (this.pool.length < POOL_TARGET && tries++ < 3) {
@@ -138,8 +155,7 @@ export class Deck {
   }
   topUp(n = 3) {
     while (this.queue.length < n) {
-      const onDay = this.state.museumDay && this.state.museumDay.left > 0;
-      const nxt = (onDay ? null : this.seedBuf.shift()) || this.pickFromPool();
+      const nxt = (this.focused() ? null : this.seedBuf.shift()) || this.pickFromPool();
       if (!nxt) break;
       this.queue.push(nxt);
     }
@@ -190,4 +206,13 @@ export class Deck {
 Deck.prototype.focusMuseum = function (src) {
   this.queue = this.queue.filter((a) => a.src === src);
   this.pool = this.pool.filter((a) => a.src === src);
+};
+
+Deck.prototype.focused = function () {
+  return !!((this.state.museumDay && this.state.museumDay.left > 0) || (this.state.explore && this.state.explore.left > 0));
+};
+// Start an Explore: drop queued works from elsewhere so the next card is from this country.
+Deck.prototype.focusPlace = function (iso) {
+  const here = (a) => { const g = geoOf(a); return g && g.iso === iso; };
+  this.queue = this.queue.filter(here); this.pool = this.pool.filter(here);
 };

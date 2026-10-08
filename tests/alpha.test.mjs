@@ -332,6 +332,7 @@ test("Met search uses the paginated v1.1 endpoint (v1 was retired Oct 1, 2026)",
 import { BADGES, badgeStats, award, pinState, unsealedAt, reached, byId, eyeTitle, closest, understanding } from "../alpha/js/badges.js";
 import { placeOf } from "../alpha/js/geo.js";
 import { museumStats } from "../alpha/js/museums.js";
+import { countryStats, grandTour, exploreTerm, mapSVG } from "../alpha/js/atlas.js";
 const mkSw = (i, v, a = {}, extra = {}) => ({ uid: `t:${i}`, v, t: 1_700_000_000_000 + i * 60_000, f: [a.movement && `style|${a.movement}`, a.year != null && `cent|c${Math.floor(a.year / 100)}`].filter(Boolean), a: { uid: `t:${i}`, title: `W${i}`, ...a }, ...extra });
 
 test("place lexicon maps how museums describe place to modern countries", () => {
@@ -342,8 +343,8 @@ test("place lexicon maps how museums describe place to modern countries", () => 
   assert.deepEqual(placeOf("West Africa"), { iso: null, continent: "AF" }, "continent-only places count for continents, not countries");
 });
 
-test("cabinet: 47 pins, unique ids, every rule runs on an empty history", () => {
-  assert.equal(BADGES.length, 47); assert.equal(new Set(BADGES.map((b) => b.id)).size, 47);
+test("cabinet: 48 pins, unique ids, every rule runs on an empty history", () => {
+  assert.equal(BADGES.length, 48); assert.equal(new Set(BADGES.map((b) => b.id)).size, 48);
   const st = badgeStats({ swipes: [], badges: {} }, null);
   for (const b of BADGES) assert.equal(reached(b, st), 0, b.id);
 });
@@ -434,4 +435,20 @@ test("museums: stamps dated by the tenth decision, keep rates that don't overrea
   assert.equal(ms.by.vam.stampAt, null); assert.equal(ms.home.src, "nga");
   assert.equal(ms.ranked.length, 2, "a single V&A keep doesn't rank");
   assert.ok(ms.by.met.score > 0, "zero keeps out of ten is pulled toward your overall rate");
+});
+
+test("atlas: country leanings, Grand Tour route, explore terms, map", () => {
+  const sw = [];
+  for (let i = 0; i < 8; i++) sw.push(mkSw(i, 2, { place: "Japan, Edo period" }));
+  for (let i = 8; i < 16; i++) sw.push(mkSw(i, -1, { place: "Mexico" }));
+  sw.push(mkSw(16, 2, { place: "Venetian" }), mkSw(17, 2, { place: "Venetian" }), mkSw(18, 2, { artistBio: "Norwegian, 1876–1926" }), mkSw(19, 1, { place: "Unknown" }));
+  const cs = countryStats({ swipes: sw });
+  assert.deepEqual(Object.keys(cs.by).sort(), ["IT", "JP", "MX", "NO"], "Unknown stays unknown");
+  assert.ok(cs.by.JP.lean > 0.5 && cs.by.MX.lean < -0.5, `JP ${cs.by.JP.lean}, MX ${cs.by.MX.lean}`);
+  assert.equal(cs.pulls[0].iso, "JP"); assert.ok(cs.by.JP.places.has("Japan"));
+  assert.deepEqual(grandTour({ swipes: sw }), ["JP", "IT", "NO"], "repeats in a row collapse");
+  assert.equal(exploreTerm("JP", "nga"), "Japanese"); assert.equal(exploreTerm("JP", "aic"), "Japan"); assert.equal(exploreTerm("XX", "aic"), null);
+  const world = JSON.parse(readFileSync(new URL("../alpha/data/world.json", import.meta.url), "utf8"));
+  const svg = mapSVG(world, cs, { selected: "JP", tour: ["JP", "IT"] });
+  assert.equal((svg.match(/class="seen/g) || []).length, 4); assert.ok(/class="fog/.test(svg) && /class="route"/.test(svg) && /seen sel/.test(svg));
 });
