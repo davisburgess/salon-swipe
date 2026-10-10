@@ -4,7 +4,9 @@ import { mkdirSync, readFileSync } from "node:fs";
 import { loadPlaywright, chromiumPath, mockWorld, d1 } from "./harness.mjs";
 import { FEATURES } from "./features.mjs";
 
-const OUT = process.argv[2] || "test-results"; mkdirSync(OUT, { recursive: true });
+const OUT = process.argv[2] || "test-results";
+if (/(^|\/)alpha\/?$/.test(OUT)) throw new Error("The argument is where screenshots go; use test-results, not the app folder.");
+mkdirSync(OUT, { recursive: true });
 const ROOT = process.env.BASE || "http://127.0.0.1:8123";
 const APP = `${ROOT}/alpha/`;
 const { chromium } = await loadPlaywright();
@@ -276,6 +278,25 @@ const store = (p) => pp(p, () => JSON.parse(localStorage.getItem("pp-alpha-v1"))
     await p.click(".sheet-love .lovebtn");
     expect(/Loved/.test(await p.textContent(".sheet-love")), "sheet star didn't update"); await p.click("#sheetDone");
     await p.screenshot({ path: `${OUT}/kept.png` });
+  });
+  await check("kept.slideshow", async () => {
+    await p.click("#tab-kept"); await p.waitForSelector("#showGo"); await p.click("#showGo"); await p.waitForSelector("#showForm");
+    await p.selectOption("#showSec", "10"); await p.click("#showStart");
+    await p.waitForSelector(".show .show-img.front", { timeout: 10000 });
+    const s0 = await store(p), kept = new Set(s0.swipes.filter((x) => x.v > 0).map((x) => x.uid)), n = s0.swipes.length;
+    const uid1 = await pp(p, () => __pp.show.uid); expect(kept.has(uid1), "slideshow showing a work that isn't kept");
+    expect(/\S/.test(await p.textContent(".show-info .what")), "no label beside the art");
+    expect(s0.settings.show && s0.settings.show.sec === 10, "duration not saved");
+    await p.keyboard.press("ArrowRight"); await p.waitForTimeout(700); const uid2 = await pp(p, () => __pp.show.uid);
+    expect(uid2 !== uid1 && kept.has(uid2), "→ didn't step to the next kept work");
+    await pp(p, () => __pp.show.setSec(1)); await p.waitForTimeout(2600);
+    expect(await pp(p, () => __pp.show.uid) !== uid2, "didn't advance on its own");
+    await p.keyboard.press("i"); await p.waitForTimeout(200);
+    expect(await p.isHidden(".show-info") && (await store(p)).settings.show.info === false, "I didn't hide the label, or it wasn't remembered");
+    await p.screenshot({ path: `${OUT}/slideshow.png` });
+    expect((await store(p)).swipes.length === n, "slideshow keys reached the deck");
+    await p.keyboard.press("Escape"); await p.waitForTimeout(200); expect(await p.locator(".show").count() === 0, "Escape didn't close the slideshow");
+    await p.click("#showGo"); await p.waitForSelector("#showForm"); expect(!(await p.isChecked("#showInfo")), "label setting not remembered"); await p.click("#showCancel");
   });
   await check("settings.discovery", async () => {
     await p.click("#tab-settings"); await p.fill("#explore", "0.8"); await p.dispatchEvent("#explore", "input");

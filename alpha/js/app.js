@@ -15,6 +15,7 @@ import { emblemSVG, BADGES, FAMILIES, TIERS, APP_RUNGS, badgeStats, award, unsea
 import * as api from "./sync.js";
 import { analyze } from "./vision.js";
 import { APP } from "./config.js";
+import { startShow, SHOW_SECONDS, SHOW_DEFAULTS, secLabel } from "./slideshow.js";
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1010,7 +1011,7 @@ function renderKept() {
   const all = state.swipes.filter((s) => s.v > 0).slice().reverse();
   const list = keptFilter === "loved" ? all.filter((s) => s.v === 2) : keptFilter === "onview" ? all.filter((s) => s.a.onView) : all;
   $("#view-kept").innerHTML = `<div class="page">
-    <h1 class="display small">Kept</h1>
+    <div class="kept-head"><h1 class="display small">Kept</h1>${all.length ? `<button class="btn" id="showGo" type="button">Slideshow</button>` : ""}</div>
     <div class="filters" role="group" aria-label="Filter">
       ${[["all", `All (${all.length})`], ["loved", `Loved (${all.filter((s) => s.v === 2).length})`], ["onview", `On view (${all.filter((s) => s.a.onView).length})`]].map(([k, l]) => `<button class="chip" aria-pressed="${keptFilter === k}" data-f="${k}">${l}</button>`).join("")}
     </div>
@@ -1021,6 +1022,35 @@ function renderKept() {
   $$(".filters .chip").forEach((b) => (b.onclick = () => { keptFilter = b.dataset.f; renderKept(); }));
   $$(".tile").forEach((b) => (b.onclick = () => openSheet(list[+b.dataset.i].a)));
   bindLoveBtns($("#view-kept"), () => renderKept());
+  const sg = $("#showGo"); if (sg) sg.onclick = openShowSettings;
+}
+
+/* ---------- Slideshow (Kept, full screen, for a TV) ---------- */
+function showSettings() { return { ...SHOW_DEFAULTS, ...(state.settings.show || {}) }; }
+function openShowSettings() {
+  const st = showSettings(), all = state.swipes.filter((s) => s.v > 0).slice().reverse();
+  const sets = { all: all, loved: all.filter((s) => s.v === 2), onview: all.filter((s) => s.a.onView) };
+  const set = sets[keptFilter] && sets[keptFilter].length ? keptFilter : "all";
+  openModal(`<p class="kicker">Kept</p><h2>Slideshow</h2>
+    <form class="showform" id="showForm">
+      <label>Works<select id="showSet">${[["all", "All kept"], ["loved", "Loved"], ["onview", "On view"]].filter(([k]) => sets[k].length).map(([k, l]) => `<option value="${k}" ${k === set ? "selected" : ""}>${l} (${sets[k].length})</option>`).join("")}</select></label>
+      <label>Each work for<select id="showSec">${SHOW_SECONDS.map((n) => `<option value="${n}" ${n === st.sec ? "selected" : ""}>${secLabel(n)}</option>`).join("")}</select></label>
+      <label>Order<select id="showOrder"><option value="shuffle" ${st.order === "shuffle" ? "selected" : ""}>Shuffle</option><option value="newest" ${st.order === "newest" ? "selected" : ""}>Newest first</option></select></label>
+      <label class="check"><input type="checkbox" id="showInfo" ${st.info ? "checked" : ""}> Show the label beside the art</label>
+    </form>
+    <p class="small muted">Plays full screen and loops until you stop it. The screen stays awake. To show it on a TV, connect this computer by HDMI, use Chrome's Cast &rarr; Cast tab, or AirPlay Screen Mirroring from an iPhone or iPad.</p>
+    <div class="btns"><button class="btn primary" id="showStart" type="button">Start</button><button class="btn" id="showCancel" type="button">Cancel</button></div>`);
+  $("#showCancel").onclick = closeModal;
+  $("#showStart").onclick = () => {
+    const opts = { sec: +$("#showSec").value, order: $("#showOrder").value, info: $("#showInfo").checked };
+    state.settings.show = opts; persist();
+    const works = sets[$("#showSet").value].map((s) => s.a);
+    closeModal();
+    // Starts inside this tap, so the browser allows full screen.
+    const ctl = startShow(works, opts, { onChange: (c) => { state.settings.show = { ...showSettings(), ...c }; persist(); }, onClose: () => { if (window.__pp) window.__pp.show = null; } });
+    if (!ctl) return toast("None of these works has an image to show.");
+    if (window.__pp) window.__pp.show = ctl;
+  };
 }
 
 /* ---------- Loved (favorites) from Kept and the wall text ---------- */

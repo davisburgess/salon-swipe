@@ -13,6 +13,8 @@ export const FEATURES = [
   { id: "look.buttons", name: "Buttons and keyboard shortcuts for every action", where: ["app.js#decisions", "alpha/index.html"], checks: ["e2e:look.buttons"] },
   { id: "look.why", name: "After a Love, the work stays up while we ask what drew you in", where: ["app.js#why chips", "app.js#decisions"], checks: ["e2e:look.why"],
     phone: "Love a work; it stays on the wall with a gold edge until you tap Next work." },
+  { id: "kept.slideshow", name: "Kept slideshow: full screen, looping, set time per work, label on or off", where: ["alpha/js/slideshow.js", "app.js#Slideshow", "alpha/app.css"], checks: ["e2e:kept.slideshow"],
+    phone: "Kept → Slideshow → Start; it goes full screen; ← → step, Space pauses, I toggles the label, Esc closes." },
   { id: "look.wide", name: "Large landscape screens: art on the left, label and controls on the right", where: ["alpha/app.css"], checks: ["e2e:look.wide"],
     phone: "On a laptop or TV, the art fills the left; on a phone nothing changes." },
   { id: "look.later", name: "Later: returns 15–25 decisions on, second look opens wall text, third Later is undecided", where: ["alpha/js/deck.js", "app.js#decisions", "app.js#the stage"],

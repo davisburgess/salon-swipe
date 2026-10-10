@@ -1,9 +1,9 @@
 // Offline support. The app shell is cached on install; artwork images are cached as you see them
 // (newest 300 kept); museum API calls always go to the network so you get fresh works.
-const VERSION = "pp-0.7.3-alpha";
+const VERSION = "pp-0.8.0-alpha";
 const SHELL = ["./", "./index.html", "./app.css", "./manifest.webmanifest", "./privacy.html",
   "./js/app.js", "./js/util.js", "./js/curation.js", "./js/sources.js", "./js/model.js", "./js/deck.js",
-  "./js/store.js", "./js/rewards.js", "./js/sync.js", "./js/vision.js", "./js/config.js", "./js/geo.js", "./js/badges.js", "./js/museums.js", "./js/atlas.js", "./js/vocab.js", "./js/recommend.js", "./js/quests.js", "./data/world.json",
+  "./js/store.js", "./js/rewards.js", "./js/sync.js", "./js/vision.js", "./js/config.js", "./js/geo.js", "./js/badges.js", "./js/museums.js", "./js/atlas.js", "./js/vocab.js", "./js/recommend.js", "./js/quests.js", "./js/slideshow.js", "./data/world.json",
   "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png"];
 const IMG = `${VERSION}-img`, MAX_IMG = 300;
 

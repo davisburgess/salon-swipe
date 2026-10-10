@@ -6,6 +6,25 @@ How every release ships:
 3. **GitHub re-runs everything on each push** (Actions, "Checks"), and probes the real museum APIs every morning, which the build workspace can't reach. A commit message containing `[live]` runs that probe immediately; every release commit uses it.
 4. **At most one small usability improvement per release,** listed here so you can veto it. Never a change to gestures, saved data, or anything you'd have to relearn without asking first.
 
+## 0.8.0-alpha (Oct 10, 2026)
+
+**New: Kept slideshow.** Kept → **Slideshow** plays your kept works full screen and loops until you stop it.
+- **Settings**, remembered between shows:
+  - which works: All kept, Loved or On view;
+  - time per work: 10 seconds to 10 minutes;
+  - order: Shuffle, reshuffled on every loop, or Newest first;
+  - whether the label shows beside the art.
+- **On a landscape screen**, the label hangs beside the work like a museum label, level with its bottom edge, and the pair is centered. On a portrait screen it sits under the art.
+- **Built for a TV:** a dark wall, the museums' largest images, a slow cross-fade, and each next image loaded before it's shown. A work whose image won't load is skipped. The screen stays awake while the show runs.
+- **Controls** appear when you move the mouse or tap, then fade, and the cursor hides. Previous, pause, next, label on or off, close. Keys: ← → step, Space pauses, I toggles the label, Esc closes. None of these reach the swipe deck behind the show.
+- **Getting it onto the TV:** connect the computer by HDMI, cast the Chrome tab (⋮ → Cast → Cast tab), or use AirPlay Screen Mirroring from an iPhone or iPad. On iPhone, Safari doesn't allow true full screen, so the show fills the browser window instead.
+
+**Pushback, for your call: native Chromecast.** A true Cast button, where the TV plays the show on its own and your phone can sleep, needs a small receiver page registered with Google Cast. Registration is a one-time $5 Google developer fee on your account. Tab casting covers it until then.
+
+**Housekeeping.** The browser checks' screenshots and test backups had been saved into the app folder, and 25 of them were published with the site. They're removed and now ignored, and the test runner refuses that folder.
+
+**Checks:** 60 unit and backend tests, 47 of 47 browser checks. The new kept.slideshow check opens the show, confirms it shows only kept works with a label, steps with →, advances on its own, hides and remembers the label setting with I, confirms no keys reach the deck, and closes with Esc.
+
 ## 0.7.3-alpha (Oct 9, 2026)
 
 Two changes you asked for.

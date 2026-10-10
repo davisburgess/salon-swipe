@@ -1,2 +1,4 @@
 test-results/
 node_modules/
+alpha/*.png
+alpha/picture-plane-*.json
