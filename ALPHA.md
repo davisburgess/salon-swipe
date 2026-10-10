@@ -24,7 +24,16 @@ Working name for the next version of Salon Swipe. Lives at `/alpha/`, with its o
 - `node --test tests/*.test.mjs` runs unit tests and the Worker against real SQLite.
 - `IMGDIR=<dir of p0..p5.jpg> node tests/e2e.mjs <out dir>` runs the app in Chromium with mocked museums and the real Worker in-process.
 
+## To professionalize
+What separates this personal alpha from a product others could use. Each item says who acts and what it costs.
+
+| Item | Why | Who / cost |
+|---|---|---|
+| **Chromecast receiver page** | The slideshow casts today only by mirroring a tab or screen, which keeps the phone or computer busy. A registered Cast receiver lets the TV play the show on its own, with the label, while the phone sleeps. Build a small receiver page in the repo and add a Cast button to the slideshow. | You: register as a Google Cast developer ($5 one time) and add the receiver URL. Me: build the receiver and sender. |
+| **Backend keys** | Sync across devices, backup to the cloud, and fuller curator notes need the Worker deployed. | You: add `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `ANTHROPIC_API_KEY` as GitHub secrets (see Backend setup). |
+| **Real sign-in** | Sync identity is a random key with no email or password. Fine for one person; anyone else needs accounts and recovery. | Me, after the backend is live. |
+| **Lock the level ladder** | Levels may still be recalibrated and can demote you. Before anyone else uses the app, levels must only ever go up. | Me, on your go. |
+| **Name clearance** | "Picture Plane" is a working name. | An attorney: trademark search. |
+
 ## Known gaps
-- Museum adapters for the Met and Cleveland are built from their documented formats and tested with stand-in data; first contact with the live APIs may need small fixes.
-- Sync identity is a random key (no email or password). Fine for personal use; a public launch needs real sign-in.
-- Name is a working name pending trademark clearance by an attorney.
+- Museum data quality varies: an anonymous work with a wrong place label can still land in the wrong country (see 0.7.2).
