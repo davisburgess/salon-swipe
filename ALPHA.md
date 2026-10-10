@@ -48,6 +48,8 @@ Working name for the next version of Salon Swipe. Lives at `/alpha/`, with its o
 | **Turso** | Generous free database (5 GB, 500M reads a month), but it's only a database; we'd still need Workers for the API ([summary](https://costbench.com/software/database-as-service/turso/free-plan)). D1 does the same job in one account. |
 | **GitHub as storage** (gists, repo files) | Ruled out. Would put a GitHub token in the browser. |
 
+**Hosting the app if the repo goes private:** GitHub Pages serves private repos only on paid plans (Pro and up), and the site stays public anyway ([docs](https://docs.github.com/en/pages/getting-started-with-github-pages/creating-a-github-pages-site)). Plan: serve the app from Cloudflare Pages (free, works with private repos), then make the repo private. Private repos get 2,000 Actions minutes a month free; Oct 7–10 ran about 50 minutes, roughly 500 a month at that pace. The new address is a new origin, so saved data must move by backup file and `ALLOWED_ORIGINS` in `worker/wrangler.toml` must include it. After the move, update the live address in CLAUDE.md and here.
+
 **When to revisit:** real sign-in for other people (see To professionalize). Options then: Cloudflare Access or a passkey library on the Worker, versus Supabase Auth. Decide in a planning chat.
 
 **Build follow-ups (for a build chat)**
