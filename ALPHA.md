@@ -25,6 +25,7 @@ Working name for the next version of Salon Swipe. Lives at `/alpha/`, with its o
 - `IMGDIR=<dir of p0..p5.jpg> node tests/e2e.mjs <out dir>` runs the app in Chromium with mocked museums and the real Worker in-process.
 
 ## To professionalize
+Ideas evaluated but not yet built live in [ENHANCEMENTS.md](ENHANCEMENTS.md).
 What separates this personal alpha from a product others could use. Each item says who acts and what it costs.
 
 | Item | Why | Who / cost |
