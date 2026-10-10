@@ -58,6 +58,26 @@ Working name for the next version of Salon Swipe. Lives at `/alpha/`, with its o
 - `node --test tests/*.test.mjs` runs unit tests and the Worker against real SQLite.
 - `IMGDIR=<dir of p0..p5.jpg> node tests/e2e.mjs <out dir>` runs the app in Chromium with mocked museums and the real Worker in-process.
 
+## Moving to the main address (research, Oct 10, 2026)
+Davis wants the alpha to become the app at `/salon-swipe/`. Findings and recommendations for the release owner. Nothing here is built yet.
+
+**Branching: keep it.** Trunk-based `main`, short `feat/<topic>` branches, one release owner. A `develop` or `staging` branch adds merge chores and no safety for one user. Don't add a required-PR rule either; it would block the release owner's direct pushes.
+
+**CI/CD: change one thing. Deploy only what passed.** Today Pages publishes `main` on every push, before or regardless of Checks. A red release still goes live. Recommended:
+- Switch Pages source from "Deploy from a branch" to **GitHub Actions** (Davis: Settings → Pages → Source).
+- Add a deploy job to `checks.yml` that `needs: features`, runs only on `main`, and publishes **only the app folder** as the site root. Tests, tools, worker source and docs stop being served.
+- **Gotcha:** commits pushed by workflows (`build-data.yml` monthly data, `deploy-api.yml` writing `api.json`) don't start other workflows. The branch-based Pages build picks them up today; an Actions deploy won't. Each of those workflows must end by starting Checks (`gh workflow run checks.yml`, which is allowed, with `actions: write`), or new data never ships.
+- Add a ruleset on `main`: no force-push, no deletion. Cheap insurance against a session rewriting history.
+- Update CLAUDE.md step 6: confirm the deploy job, not "pages build and deployment".
+
+**The move itself: risks to handle in the release.**
+- **Saved data.** localStorage is per site, not per folder, so `pp-alpha-v1` carries over in a browser. Keep the key name; renaming it is a data migration. Old Salon Swipe data also stays, so its import keeps working.
+- **Home-screen app.** The installed app opens `/alpha/`. On iPhone, home-screen apps may keep storage separate from Safari, so a reinstall at the new address could start empty. Before the move: Settings → **Save backup file**; after reinstalling, restore it. State this in the release notes.
+- **Old service worker.** The `/alpha/` worker keeps serving its cached copy. Replace `alpha/` on the site with a redirect page plus a worker that unregisters itself and clears its caches. Keep both for a few months.
+- **Retire** the old root Salon Swipe page and `/beta/`; they stay in git history.
+- **Folder name.** Optional: rename `alpha/` to `app/` in a separate mechanical commit. About 15 files in `tests/`, `tools/` and workflows reference it.
+- **Version.** Product call for a Planning chat: the move as 0.9.0, with 1.0 reserved for when the level ladder is locked (below).
+
 ## To professionalize
 Ideas evaluated but not yet built live in [ENHANCEMENTS.md](ENHANCEMENTS.md).
 What separates this personal alpha from a product others could use. Each item says who acts and what it costs.
