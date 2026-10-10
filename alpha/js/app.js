@@ -69,7 +69,9 @@ function setWall(a) {
 
 /* ---------- views ---------- */
 let currentView = "look";
+let held = null;   // a just-loved work kept on the wall while "What drew you in?" is open
 function show(view) {
+  if (held && view !== "look") releaseHold();   // leaving mid-question moves on; the Love is already saved
   currentView = view;
   for (const v of ["look", "taste", "kept", "settings"]) {
     $(`#view-${v}`).hidden = v !== view;
@@ -154,7 +156,7 @@ function dropBroken(a) {
 
 function renderStage() {
   renderQuestBar();
-  if (currentView !== "look") return;
+  if (currentView !== "look" || held) return;   // a loved work stays up while we ask what drew you in
   stage.innerHTML = "";
   const waiting = state.later.length;
   deck.releaseLater(); deck.topUp();
@@ -248,6 +250,7 @@ function flyOut(el, kind, v = {}) {
 const VERB = { 2: "Loved", 1: "Kept", "-1": "Passed", 0: "Marked undecided" };
 
 function decide(v, vel) {
+  if (held) return releaseHold();   // while a Love is being asked about, any decision just moves on
   const a = deck.queue[0]; if (!a) return;
   const top = $(".card.top", stage);
   const predicted = model.trained ? model.p(features(a)) : null;
@@ -266,12 +269,26 @@ function decide(v, vel) {
   if (state.swipes.length % 25 === 0) model.drifting = driftFromHistory(state.swipes);   // between full retrains
   deck.markSeen(a); deck.queue.shift(); deck.releaseLater(); deck.topUp();
   undoStack.push({ type: "swipe", rec, card: a }); if (undoStack.length > 15) undoStack.shift();
-  flyOut(top, v === 2 ? "love" : v === 1 ? "keep" : v === -1 ? "pass" : "undecided", vel);
   say(`${VERB[v]}: ${a.title}`);
   persist();
+  if (v === 2 && top) {
+    // Keep the loved work on the wall while asking what drew you in; Next (or any arrow key) moves on.
+    if (top.style.transform) { top.style.transition = "transform .25s ease"; top.style.transform = ""; }
+    top.classList.add("held"); setEdges(0, 0);
+    held = { el: top, rec, a };
+    $("#btnUndo").disabled = false;
+    showWhy(rec);
+    return;
+  }
+  flyOut(top, v === 1 ? "keep" : v === -1 ? "pass" : "undecided", vel);
   setTimeout(() => { renderStage(); afterDecision(rec); }, reduceMotion ? 120 : 260);
-  if (v === 2) showWhy(rec);
-  else hideWhy();
+  hideWhy();
+}
+function releaseHold() {
+  const h = held; if (!h) return;
+  held = null; hideWhy();
+  flyOut(h.el, "love");
+  setTimeout(() => { renderStage(); afterDecision(h.rec); }, reduceMotion ? 120 : 260);
 }
 
 // The opening hang only advances when you've actually seen a work, so leaving the app never skips traditions.
@@ -282,6 +299,7 @@ function markSeedSeen(a) {
 }
 
 function later(vel) {
+  if (held) return releaseHold();
   const a = deck.queue[0]; if (!a) return;
   markSeedSeen(a);
   const res = deck.defer(a);
@@ -296,7 +314,7 @@ function later(vel) {
 
 function undo() {
   const h = undoStack.pop(); if (!h) return;
-  hideWhy();
+  held = null; hideWhy();
   if (h.type === "skip") {
     const i = deck.queue.indexOf(h.shown);
     if (i >= 0) { deck.queue.splice(i, 1); deck.pool.push(h.shown); }
@@ -324,8 +342,9 @@ $("#btnKeep").onclick = () => decide(1);
 $("#btnLove").onclick = () => decide(2);
 $("#btnLater").onclick = () => later();
 $("#btnUndo").onclick = undo;
-$("#btnInfo").onclick = () => deck.queue[0] && openSheet(deck.queue[0]);
+$("#btnInfo").onclick = () => { const a = held ? held.a : deck.queue[0]; if (a) openSheet(a); };
 $("#btnNewStyle").onclick = async (e) => {
+  if (held) return releaseHold();
   const b = e.currentTarget; b.disabled = true; b.textContent = "Finding one…";
   try {
     const res = await deck.newStyle();
@@ -342,7 +361,7 @@ $("#btnNewStyle").onclick = async (e) => {
   } finally { b.disabled = false; b.textContent = "New style"; }
 };
 addEventListener("keydown", (e) => {
-  if (e.key === "Escape") { closeSheet(); closeZoom(); hideWhy(); closeModal(); return; }
+  if (e.key === "Escape") { const was = !$("#sheet").hidden || !zoom.hidden || !$("#modal").hidden; closeSheet(); closeZoom(); closeModal(); if (held && !was) releaseHold(); return; }
   // While the full-size view is open, keys move the picture, never the deck behind it.
   if (!zoom.hidden) {
     const step = 80, k = { ArrowLeft: () => zPan(step, 0), ArrowRight: () => zPan(-step, 0), ArrowUp: () => zPan(0, step), ArrowDown: () => zPan(0, -step),
@@ -354,7 +373,8 @@ addEventListener("keydown", (e) => {
   if (currentView !== "look" || !$("#modal").hidden || e.target.closest("input,textarea,select")) return;
   // Deciding while the wall text is open closes it and acts on the work you were reading about.
   if (!$("#sheet").hidden) { if (!/^Arrow/.test(e.key)) return; closeSheet(); }
-  const k = { ArrowRight: () => decide(1), ArrowLeft: () => decide(-1), ArrowUp: () => decide(2), ArrowDown: () => later(), Backspace: undo, i: () => deck.queue[0] && openSheet(deck.queue[0]) }[e.key];
+  if (held && ((e.key === "Enter" && !e.target.closest("button")) || /^Arrow/.test(e.key))) { e.preventDefault(); return releaseHold(); }
+  const k = { ArrowRight: () => decide(1), ArrowLeft: () => decide(-1), ArrowUp: () => decide(2), ArrowDown: () => later(), Backspace: undo, i: () => $("#btnInfo").click() }[e.key];
   if (k) { e.preventDefault(); k(); }
 });
 
@@ -363,17 +383,17 @@ let whyRec = null, whyT = null;
 function showWhy(rec) {
   whyRec = rec;
   const tray = $("#why");
-  tray.innerHTML = `<p>What drew you in?</p><div class="chips">${WHY_CHIPS.map((c) => `<button type="button" class="chip" aria-pressed="false" data-c="${c}">${c}</button>`).join("")}</div>`;
+  tray.innerHTML = `<p>What drew you in?</p><div class="chips">${WHY_CHIPS.map((c) => `<button type="button" class="chip" aria-pressed="false" data-c="${c}">${c}</button>`).join("")}</div>
+    <div class="why-next"><span class="small muted">Optional. Your Love is saved.</span><button type="button" class="btn small primary" id="whyNext">Next work</button></div>`;
   tray.hidden = false;
+  $("#whyNext").onclick = releaseHold;
   $$(".chip", tray).forEach((b) => (b.onclick = () => {
     const on = b.getAttribute("aria-pressed") !== "true";
     b.setAttribute("aria-pressed", on);
     const set = new Set(whyRec.why || []); on ? set.add(b.dataset.c) : set.delete(b.dataset.c);
     whyRec.why = [...set]; if (!whyRec.why.length) delete whyRec.why;
     state.sync.dirty.push(whyRec.uid); persist();
-    clearTimeout(whyT); whyT = setTimeout(hideWhy, 5000);
   }));
-  clearTimeout(whyT); whyT = setTimeout(hideWhy, 6000);
 }
 function hideWhy() { $("#why").hidden = true; whyRec = null; clearTimeout(whyT); }
 

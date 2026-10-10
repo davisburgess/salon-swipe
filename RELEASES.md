@@ -6,6 +6,24 @@ How every release ships:
 3. **GitHub re-runs everything on each push** (Actions, "Checks"), and probes the real museum APIs every morning, which the build workspace can't reach. A commit message containing `[live]` runs that probe immediately; every release commit uses it.
 4. **At most one small usability improvement per release,** listed here so you can veto it. Never a change to gestures, saved data, or anything you'd have to relearn without asking first.
 
+## 0.7.3-alpha (Oct 9, 2026)
+
+Two changes you asked for.
+
+**1. After a Love, the work stays up while we ask what drew you in.** Before, the work flew off and the question appeared under the next one, then disappeared after six seconds.
+- The loved work now stays on the wall with a gold edge until you tap **Next work** or press any arrow key or Enter. There's no timer.
+- Your Love is saved the moment you give it. The reasons are optional.
+- **One behavior to know:** while the question is open, an arrow key or swipe only moves on. It doesn't decide the next work, which you haven't seen yet. Undo still works and takes back the Love. Wall text (the page icon or I) opens for the loved work.
+
+**2. Large screens use the space.** On a landscape screen at least 1,100 pixels wide (a laptop, or your computer on the TV):
+- The art fills the left side at nearly full height.
+- The label, the "why you're seeing this" note, the quest bar, the reason chips and the controls sit in a column on the right. Text scales up for viewing across a room.
+- The Look/Taste/Kept/Settings tabs move from the bottom to the top bar, which frees about 60 pixels of height.
+- Wall text opens as a panel on the right instead of a sheet from the bottom.
+- **Phones are unchanged.** A browser check confirms the label still sits under the art at phone size.
+
+**Checks:** 60 unit and backend tests, 46 of 46 browser checks. look.why now requires the loved work to stay up for more than six seconds and an arrow key to move on without deciding. The new look.wide check covers a 1920×1080 screen: the art is beside the label, at least 82% of the height, with no sideways scrolling, and the phone layout is unchanged.
+
 ## 0.7.2-alpha (Oct 8, 2026)
 
 **Bug you reported: during "Works from China", a few cards weren't from China, and some were English art of China rather than Chinese art.** Two causes: one in our code, one in how we read museum labels.

@@ -23,7 +23,9 @@ async function openInfo(p) {   // a level-up dialog can arrive after any decisio
   await waitTop(p); if (await p.isVisible("#modal:not([hidden])")) { const ok = await p.$("#modalOk"); if (ok) await ok.click(); }
   await p.keyboard.press("i"); await p.waitForSelector("#sheet.open");
 }
-async function press(p, key, n = 1) { for (let i = 0; i < n; i++) { await waitTop(p); if (await p.isVisible("#modal:not([hidden])")) { const ok = await p.$("#modalOk"); if (ok) await ok.click(); } await p.keyboard.press(key); await p.waitForTimeout(300); } }
+async function press(p, key, n = 1) { for (let i = 0; i < n; i++) { await waitTop(p); if (await p.isVisible("#modal:not([hidden])")) { const ok = await p.$("#modalOk"); if (ok) await ok.click(); } await p.keyboard.press(key); await p.waitForTimeout(300); await nextAfterLove(p); } }
+// After a Love the work stays up with "What drew you in?"; move on the way a person would.
+async function nextAfterLove(p) { if (await p.isVisible("#whyNext")) { await p.click("#whyNext"); await p.waitForTimeout(420); } }
 async function drag(p, dx, dy) {
   await waitTop(p);
   const b = await p.locator(".card.top").boundingBox(); const x = b.x + b.width / 2, y = b.y + b.height * 0.4;
@@ -71,7 +73,7 @@ const store = (p) => pp(p, () => JSON.parse(localStorage.getItem("pp-alpha-v1"))
     await drag(p, 240, 10); let s = await store(p); expect(s.swipes.length === n + 1 && s.swipes.at(-1).v === 1, "drag right didn't keep"); n++;
     await drag(p, -240, 10); s = await store(p); expect(s.swipes.at(-1).v === -1, "drag left didn't pass"); n++;
     await drag(p, 0, -260); s = await store(p); expect(s.swipes.at(-1).v === 2, "drag up didn't love");
-    if (await p.isVisible("#why:not([hidden])")) await p.keyboard.press("Escape");
+    await nextAfterLove(p);
     const before = (await store(p)).later.length; await drag(p, 0, 260); expect((await store(p)).later.length === before + 1, "drag down didn't defer");
     const t = await topTitle(p); await drag(p, 30, 5); expect(await topTitle(p) === t, "a short drag shouldn't decide");
     if (await p.isVisible("#sheet:not([hidden])")) await p.click("#sheetDone");
@@ -84,10 +86,30 @@ const store = (p) => pp(p, () => JSON.parse(localStorage.getItem("pp-alpha-v1"))
     await waitTop(p); await p.keyboard.press("i"); await p.waitForSelector("#sheet.open"); await p.keyboard.press("Escape"); expect(await p.isHidden("#sheet"), "Escape didn't close wall text");
   });
   await check("look.why", async () => {
-    await waitTop(p); await p.click("#btnLove"); await p.waitForSelector("#why:not([hidden])");
+    await waitTop(p); const uid = await p.getAttribute(".card.top", "data-uid");
+    await p.click("#btnLove"); await p.waitForSelector("#why:not([hidden])"); await p.waitForTimeout(700);
+    // The loved work stays on the wall while we ask, however long you take.
+    expect(await p.getAttribute(".card.top", "data-uid") === uid && await p.isVisible(".card.top.held"), "the loved work left before the question");
     await p.click('#why .chip[data-c="Light"]'); await p.click('#why .chip[data-c="Color"]');
     const s = await store(p); expect(JSON.stringify(s.swipes.at(-1).why) === '["Light","Color"]', `why = ${JSON.stringify(s.swipes.at(-1).why)}`);
-    await p.screenshot({ path: `${OUT}/why.png` }); await p.keyboard.press("Escape");
+    await p.waitForTimeout(6500); expect(await p.isVisible("#why") && await p.getAttribute(".card.top", "data-uid") === uid, "the question timed out");
+    await p.screenshot({ path: `${OUT}/why.png` });
+    // An arrow key moves on without deciding the next work, which you haven't seen yet.
+    const n = s.swipes.length; await p.keyboard.press("ArrowRight"); await p.waitForTimeout(450); await waitTop(p);
+    expect(await p.isHidden("#why") && await p.getAttribute(".card.top", "data-uid") !== uid && (await store(p)).swipes.length === n, "arrow after a Love should only move on");
+  });
+  await check("look.wide", async () => {
+    // A TV or laptop: the art on the left at full height, label and controls on the right, nav in the top row.
+    await p.setViewportSize({ width: 1920, height: 1080 }); await p.waitForTimeout(400); await waitTop(p);
+    const g = await p.evaluate(() => { const r = (s) => document.querySelector(s).getBoundingClientRect();
+      return { hang: r(".card.top .hang"), plate: r(".card.top .plate"), ctl: r("#controls"), tab: r(".tabbar"), top: r(".topbar"), sw: document.documentElement.scrollWidth, vw: innerWidth }; });
+    expect(g.plate.left >= g.hang.right && g.ctl.left >= g.hang.right, "label and controls aren't beside the art");
+    expect(g.hang.height > 1080 * 0.82, `art area only ${Math.round(g.hang.height)}px tall`);
+    expect(Math.abs(g.tab.top - g.top.top) < 8 && g.sw <= g.vw, "nav not in the top row, or the page scrolls sideways");
+    await p.screenshot({ path: `${OUT}/wide.png` });
+    await p.setViewportSize({ width: 390, height: 844 }); await p.waitForTimeout(400); await waitTop(p);
+    const ph = await p.evaluate(() => { const h = document.querySelector(".card.top .hang").getBoundingClientRect(), pl = document.querySelector(".card.top .plate").getBoundingClientRect(); return pl.top >= h.bottom - 1; });
+    expect(ph, "phone layout changed: label should sit under the art");
   });
   await check("look.undo", async () => {
     const a = await topTitle(p), aUid = await pp(p, () => __pp.deck.queue[0].uid); await press(p, "ArrowRight"); const b = await topTitle(p); await press(p, "ArrowDown");

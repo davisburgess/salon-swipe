@@ -144,6 +144,8 @@ main { min-height: 0; min-width: 0; position: relative; }
 
 .why { position: absolute; left: 16px; right: 16px; bottom: 132px; z-index: 6; margin: 0 auto; max-width: 30rem; background: var(--paper); border-radius: 14px; padding: 12px 14px; box-shadow: 0 18px 40px -16px rgba(0,0,0,.5); animation: rise .25s ease; }
 .why p { margin: 0 0 8px; font-weight: 500; font-size: 14px; }
+.why-next { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; }
+.card.held .work { box-shadow: 0 0 0 3px var(--gilt), var(--shadow-art); transition: box-shadow .25s ease, opacity .45s ease; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { border: 1px solid var(--line); background: transparent; border-radius: 999px; padding: 6px 12px; font-size: 13.5px; }
 .chip[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
@@ -398,6 +400,37 @@ input[type=range] { width: 100%; accent-color: var(--gilt); }
   .view.look { padding: 0 32px; }
   .plate { margin: 0 auto; width: 100%; max-width: 40rem; grid-template-columns: 1fr 1fr; align-items: start; }
   .cue { border-top: 0; border-left: 1px solid var(--line); padding: 0 0 0 16px; }
+}
+/* ---------- large landscape screens (a laptop, a TV): the art takes the left, the label and controls the right ---------- */
+@media (min-width: 1100px) and (min-aspect-ratio: 5/4) and (min-height: 560px) {
+  :root { --side: clamp(320px, 26vw, 560px); --gut: clamp(24px, 3vw, 64px); }
+  body { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto minmax(0, 1fr); }
+  .topbar { grid-column: 1; grid-row: 1; padding-left: var(--gut); }
+  .tabbar { grid-column: 2; grid-row: 1; display: flex; gap: 2px; border-top: 0; background: none; padding: 4px var(--gut) 0 0; }
+  .tabbar button { display: flex; align-items: center; gap: 7px; padding: 8px 14px; font-size: 14px; border-radius: 999px; }
+  .tabbar button[aria-current="page"] { background: var(--chip); }
+  main { grid-column: 1 / -1; grid-row: 2; }
+  .view.look { display: grid; position: relative; grid-template-columns: minmax(0, 1fr) var(--side); grid-template-rows: auto minmax(0, 1fr) auto auto;
+    column-gap: var(--gut); padding: 4px var(--gut) clamp(12px, 2.5vh, 32px); }
+  .stage-wrap { grid-column: 1 / -1; grid-row: 1 / -1; }
+  .nudge { grid-column: 1; grid-row: 1; position: relative; z-index: 5; justify-self: start; }
+  .questbar { grid-column: 2; grid-row: 1; position: relative; z-index: 5; margin: 6px 0 0; }
+  .controls { grid-column: 2; grid-row: 3; position: relative; z-index: 5; padding-top: 0; }
+  .aux { grid-column: 2; grid-row: 4; position: relative; z-index: 5; }
+  .card { display: grid; grid-template-columns: minmax(0, 1fr) var(--side); column-gap: var(--gut); padding: 8px 0 clamp(12px, 2.5vh, 32px); }
+  .hang { grid-column: 1; grid-row: 1; min-height: 0; }
+  .plate { grid-column: 2; grid-row: 1; align-self: start; margin: 72px 0 0; width: auto; max-width: none; grid-template-columns: 1fr; gap: 16px; }
+  .cue { border-left: 0; border-top: 1px solid var(--line); padding: 14px 0 0; font-size: clamp(14px, .95vw, 19px); }
+  .label .who { font-size: clamp(16px, 1.15vw, 23px); }
+  .label .bio, .label .med, .label .src { font-size: clamp(13px, .9vw, 18px); }
+  .label .what { font-size: clamp(24px, 1.9vw, 40px); margin-top: 8px; -webkit-line-clamp: 4; }
+  .label .med { -webkit-line-clamp: 3; margin-top: 8px; }
+  .label .src { margin-top: 8px; }
+  .ctl { width: clamp(54px, 3.6vw, 72px); height: clamp(54px, 3.6vw, 72px); }
+  .ctl.ghost { width: clamp(42px, 2.8vw, 56px); height: clamp(42px, 2.8vw, 56px); }
+  .why { left: auto; right: var(--gut); width: var(--side); max-width: none; margin: 0; bottom: calc(clamp(54px, 3.6vw, 72px) + 84px); }
+  .sheet { left: auto; top: 0; width: min(640px, 40vw); max-height: none; border-radius: 16px 0 0 16px; transform: translateX(24px); }
+  .sheet.open { transform: none; }
 }
 @media (max-height: 640px) {
   .label .bio, .label .src, .cue .sub { display: none; }
