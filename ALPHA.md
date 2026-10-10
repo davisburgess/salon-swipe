@@ -20,6 +20,40 @@ Working name for the next version of Salon Swipe. Lives at `/alpha/`, with its o
 4. GitHub repo, Settings, Secrets and variables, Actions: add `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `ANTHROPIC_API_KEY`.
 5. Actions tab, "Deploy API", Run workflow. It creates the database, deploys, sets the key, checks health, and writes `alpha/api.json`.
 
+## Backend choice (researched Oct 10, 2026)
+
+**Decision: keep Cloudflare Workers + D1.** It's already built and tested, it's free at one user, and it costs $5 a month once others join. No alternative beats it on all three goals: ease, reliability, price.
+
+**What the backend does:** syncs decisions between devices, proxies the Claude API for Curator's Notes, and will hold keys for Smithsonian, Harvard, eBay and Etsy. That's a small API plus a small database, not an app platform.
+
+**Our usage against the free plan** ([Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/)):
+
+| Free limit | Picture Plane, one user |
+|---|---|
+| 100,000 requests a day | Dozens |
+| 10 ms CPU per request | Fine. Waiting on Claude doesn't count as CPU, and sync is capped per request. |
+| D1: 5M rows read, 100K written a day, 5 GB | A few hundred writes on a heavy day; well under 1 MB stored |
+
+**One change to know:** since Sep 1, 2026, D1's free limits are enforced. Past a limit, queries fail until midnight UTC; data is safe ([changelog](https://developers.cloudflare.com/changelog/post/2026-09-01-d1-free-tier-limit-enforcement/)). For one user that's a feature: no surprise bills. When anyone else uses the app, move to Workers Paid ($5/month).
+
+**The real cost is the Claude API, not hosting.** The Worker's daily note cap (`NOTES_PER_DAY`) is the spending control. Also set a monthly limit in the Anthropic console.
+
+**Alternatives considered**
+
+| Option | Verdict |
+|---|---|
+| **Supabase** | Ruled out. Free projects pause after 7 days without activity and must be woken by hand ([guide](https://www.jetadmin.io/blog/supabase-pricing-2026-guide-to-plans-limits-and-real-world-costs/)). Pro is $25/month. Revisit only if we need its built-in auth and Postgres. |
+| **Firebase** | Ruled out. Server code (Cloud Functions), needed to hide API keys, requires the pay-as-you-go Blaze plan with a card on file. Spark shuts Firestore off for the rest of the month if a quota is exceeded ([plans](https://firebase.google.com/docs/projects/billing/firebase-pricing-plans)). |
+| **Convex** | Good developer experience, free tier exists, $25 per developer per month for Pro ([pricing](https://www.convex.dev/pricing)). Would mean a rewrite for no gain. |
+| **Turso** | Generous free database (5 GB, 500M reads a month), but it's only a database; we'd still need Workers for the API ([summary](https://costbench.com/software/database-as-service/turso/free-plan)). D1 does the same job in one account. |
+| **GitHub as storage** (gists, repo files) | Ruled out. Would put a GitHub token in the browser. |
+
+**When to revisit:** real sign-in for other people (see To professionalize). Options then: Cloudflare Access or a passkey library on the Worker, versus Supabase Auth. Decide in a planning chat.
+
+**Build follow-ups (for a build chat)**
+- `deploy-api.yml` installs `wrangler@3`; Wrangler 4 is current. D1 commands behave the same; Node 20 is fine ([upgrade guide](https://developers.cloudflare.com/workers/wrangler/migration/update-v3-to-v4)). Bump before the first deploy.
+- Map D1's new "exceeded daily row limit" errors to a plain message ("Sync is paused until tomorrow") rather than a generic failure.
+
 ## Tests
 - `node --test tests/*.test.mjs` runs unit tests and the Worker against real SQLite.
 - `IMGDIR=<dir of p0..p5.jpg> node tests/e2e.mjs <out dir>` runs the app in Chromium with mocked museums and the real Worker in-process.
